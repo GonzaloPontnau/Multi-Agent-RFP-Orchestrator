@@ -68,7 +68,7 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen bg-slate-950 text-slate-100 flex overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 text-slate-100 flex overflow-hidden">
       {/* Sidebar */}
       <Sidebar documents={documents} onUpload={handleUpload} loading={loading} />
 
@@ -76,14 +76,19 @@ export default function App() {
       <main className="flex-1 flex flex-col min-w-0">
         {/* Error Banner */}
         {error && (
-          <div className="mx-6 mt-4 px-4 py-3 bg-red-950/50 border border-red-900/50 rounded-xl flex items-center justify-between">
+          <div className="mx-6 mt-5 px-5 py-4 bg-red-950/30 border border-red-900/30 rounded-2xl flex items-center justify-between backdrop-blur-sm">
             <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <div className="w-8 h-8 rounded-xl bg-red-500/20 flex items-center justify-center">
+                <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
               <span className="text-sm text-red-300">{error}</span>
             </div>
-            <button onClick={clearError} className="p-1 hover:bg-red-900/30 rounded-lg transition-colors">
+            <button 
+              onClick={clearError} 
+              className="p-2 hover:bg-red-900/30 rounded-xl transition-colors"
+            >
               <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -97,7 +102,7 @@ export default function App() {
             <PromptSuggestions onSelect={handleSend} />
           ) : (
             <div className="flex-1 overflow-y-auto">
-              <div className="max-w-3xl mx-auto py-8 px-6 space-y-6">
+              <div className="max-w-3xl mx-auto py-10 px-6 space-y-8">
                 {messages.map((msg) => (
                   <ChatMessage
                     key={msg.id}
@@ -108,16 +113,19 @@ export default function App() {
                 ))}
                 {loading && (
                   <div className="flex gap-4">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
+                    <div className="relative flex-shrink-0">
+                      <div className="absolute inset-0 bg-orange-500/20 rounded-full blur-md animate-pulse" />
+                      <img 
+                        src="/logo.png" 
+                        alt="Agent" 
+                        className="relative w-9 h-9 rounded-full object-cover ring-2 ring-orange-500/30" 
+                      />
                     </div>
-                    <div className="bg-slate-800/50 border border-slate-800 rounded-2xl px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <div className="w-2 h-2 bg-slate-500 rounded-full animate-pulse" />
-                        <div className="w-2 h-2 bg-slate-500 rounded-full animate-pulse" style={{ animationDelay: "0.2s" }} />
-                        <div className="w-2 h-2 bg-slate-500 rounded-full animate-pulse" style={{ animationDelay: "0.4s" }} />
+                    <div className="bg-gradient-to-br from-slate-800/80 to-slate-800/60 border border-slate-700/30 rounded-3xl rounded-tl-lg px-5 py-4 shadow-lg">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                       </div>
                     </div>
                   </div>
@@ -129,8 +137,8 @@ export default function App() {
         </div>
 
         {/* Input Area */}
-        <div className="border-t border-slate-800/50 bg-slate-900/50 backdrop-blur-sm">
-          <div className="max-w-3xl mx-auto p-6">
+        <div className="border-t border-slate-800/30 bg-gradient-to-t from-slate-900/80 to-transparent backdrop-blur-sm">
+          <div className="max-w-3xl mx-auto p-6 pt-5">
             <ChatInput onSend={handleSend} loading={loading} />
           </div>
         </div>
