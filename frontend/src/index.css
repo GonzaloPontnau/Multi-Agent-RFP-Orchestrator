@@ -4,3 +4,27 @@
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
 }
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* Textarea auto-resize helper */
+textarea {
+  field-sizing: content;
+}
