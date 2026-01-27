@@ -1,36 +1,39 @@
 import httpx
 from functools import lru_cache
 
-from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 
 from app.core.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+GROQ_API_URL = "https://api.groq.com/openai/v1"
+
 
 @lru_cache
-def get_llm(model: str = "llama3", temperature: float = 0.0) -> ChatOllama:
+def get_llm(temperature: float = 0.0) -> ChatGroq:
     """
-    Factory singleton para instancias de ChatOllama.
+    Factory singleton para instancias de ChatGroq.
     
-    Args:
-        model: Nombre del modelo en Ollama
-        temperature: 0.0 para respuestas determinísticas
+    Modelo: Llama 3.3 70B (gratis, 14,400 req/dia)
     """
-    logger.info(f"Inicializando LLM: {model} (temp={temperature})")
-    return ChatOllama(
-        model=model,
+    logger.info(f"Inicializando LLM: {settings.groq_model} (temp={temperature})")
+    return ChatGroq(
+        model=settings.groq_model,
         temperature=temperature,
-        base_url=settings.ollama_base_url,
+        api_key=settings.groq_api_key,
     )
 
 
-async def check_ollama_health() -> bool:
-    """Verifica conectividad con Ollama."""
+async def check_groq_health() -> bool:
+    """Verifica conectividad con Groq API."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            response = await client.get(f"{settings.ollama_base_url}/api/tags")
+            response = await client.get(
+                f"{GROQ_API_URL}/models",
+                headers={"Authorization": f"Bearer {settings.groq_api_key}"},
+            )
             return response.status_code == 200
     except Exception:
         return False

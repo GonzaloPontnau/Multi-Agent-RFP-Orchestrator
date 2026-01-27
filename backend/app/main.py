@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from app.api import router
 from app.core import get_logger, settings
-from app.services import check_ollama_health, get_rag_service
+from app.services import check_groq_health, get_rag_service
 
 logger = get_logger(__name__)
 
@@ -54,14 +54,14 @@ async def health_check():
     rag = get_rag_service()
     
     pinecone_ok = await rag.health_check()
-    ollama_ok = await check_ollama_health()
+    groq_ok = await check_groq_health()
     
     checks = {
         "pinecone": "ok" if pinecone_ok else "error",
-        "ollama": "ok" if ollama_ok else "error",
+        "groq": "ok" if groq_ok else "error",
     }
     
-    all_healthy = pinecone_ok and ollama_ok
+    all_healthy = pinecone_ok and groq_ok
     return {
         "status": "ok" if all_healthy else "degraded",
         "env": settings.app_env,

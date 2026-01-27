@@ -23,20 +23,14 @@ class Settings(BaseSettings):
     pinecone_api_key: str = Field(..., min_length=1)
     pinecone_env: str = Field(default="us-east-1")
 
-    # Ollama
-    ollama_base_url: str = Field(default="http://localhost:11434")
+    # Groq
+    groq_api_key: str = Field(..., min_length=1)
+    groq_model: str = Field(default="llama-3.3-70b-versatile")
 
     # RAG Settings
     pinecone_index_name: str = Field(default="rfp-index")
     chunk_size: int = Field(default=1000, ge=100, le=4000)
     chunk_overlap: int = Field(default=200, ge=0, le=1000)
-
-    @field_validator("ollama_base_url")
-    @classmethod
-    def validate_ollama_url(cls, v: str) -> str:
-        if not v.startswith(("http://", "https://")):
-            raise ValueError("ollama_base_url debe ser una URL válida")
-        return v.rstrip("/")
 
     @property
     def is_development(self) -> bool:
