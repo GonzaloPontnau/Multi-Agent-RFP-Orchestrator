@@ -1,0 +1,23 @@
+# RFP Multi-Agent Orchestrator - Dependencies
+# Python 3.11+
+
+# API Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+
+# Configuration & Validation
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+
+# LangChain Ecosystem
+langchain>=0.1.0
+langgraph>=0.0.20
+langchain-ollama>=0.0.1
+langchain-huggingface>=0.0.1
+
+# Vector Database
+pinecone-client>=3.0.0
+
+# Document Processing
+pypdf>=4.0.0
