@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # Ollama
     ollama_base_url: str = Field(default="http://localhost:11434")
 
+    # RAG Settings
+    pinecone_index_name: str = Field(default="rfp-index")
+    chunk_size: int = Field(default=1000, ge=100, le=4000)
+    chunk_overlap: int = Field(default=200, ge=0, le=1000)
+
     @field_validator("ollama_base_url")
     @classmethod
     def validate_ollama_url(cls, v: str) -> str:

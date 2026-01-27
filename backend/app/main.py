@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from app.api import router
 from app.core import get_logger, settings
+from app.services import check_ollama_health, get_rag_service
 
 logger = get_logger(__name__)
 
@@ -49,4 +50,20 @@ app.include_router(router, prefix="/api", tags=["RFP"])
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "env": settings.app_env}
+    """Health check con verificacion de dependencias."""
+    rag = get_rag_service()
+    
+    pinecone_ok = await rag.health_check()
+    ollama_ok = await check_ollama_health()
+    
+    checks = {
+        "pinecone": "ok" if pinecone_ok else "error",
+        "ollama": "ok" if ollama_ok else "error",
+    }
+    
+    all_healthy = pinecone_ok and ollama_ok
+    return {
+        "status": "ok" if all_healthy else "degraded",
+        "env": settings.app_env,
+        "checks": checks,
+    }

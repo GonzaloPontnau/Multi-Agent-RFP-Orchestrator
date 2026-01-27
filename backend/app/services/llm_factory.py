@@ -1,3 +1,4 @@
+import httpx
 from functools import lru_cache
 
 from langchain_ollama import ChatOllama
@@ -23,3 +24,13 @@ def get_llm(model: str = "llama3", temperature: float = 0.0) -> ChatOllama:
         temperature=temperature,
         base_url=settings.ollama_base_url,
     )
+
+
+async def check_ollama_health() -> bool:
+    """Verifica conectividad con Ollama."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{settings.ollama_base_url}/api/tags")
+            return response.status_code == 200
+    except Exception:
+        return False

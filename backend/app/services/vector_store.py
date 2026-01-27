@@ -1,3 +1,5 @@
+import asyncio
+from functools import lru_cache
 from pathlib import Path
 
 from langchain_community.document_loaders import PyPDFLoader
@@ -11,10 +13,6 @@ from app.services.embeddings import EMBEDDING_DIMENSION, get_embeddings
 
 logger = get_logger(__name__)
 
-INDEX_NAME = "rfp-index"
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 200
-
 
 class RAGService:
     """Servicio de RAG con Pinecone como vector store."""
@@ -24,8 +22,8 @@ class RAGService:
         self._index = None
         self._embeddings = get_embeddings()
         self._splitter = RecursiveCharacterTextSplitter(
-            chunk_size=CHUNK_SIZE,
-            chunk_overlap=CHUNK_OVERLAP,
+            chunk_size=settings.chunk_size,
+            chunk_overlap=settings.chunk_overlap,
         )
 
     @property
@@ -36,21 +34,26 @@ class RAGService:
 
     async def initialize_index(self) -> None:
         """Verifica o crea el índice en Pinecone."""
+        index_name = settings.pinecone_index_name
+        
         try:
-            existing = [idx.name for idx in self.pc.list_indexes()]
+            existing = await asyncio.to_thread(
+                lambda: [idx.name for idx in self.pc.list_indexes()]
+            )
             
-            if INDEX_NAME not in existing:
-                logger.info(f"Creando índice '{INDEX_NAME}' en Pinecone")
-                self.pc.create_index(
-                    name=INDEX_NAME,
+            if index_name not in existing:
+                logger.info(f"Creando índice '{index_name}' en Pinecone")
+                await asyncio.to_thread(
+                    self.pc.create_index,
+                    name=index_name,
                     dimension=EMBEDDING_DIMENSION,
                     metric="cosine",
                     spec=ServerlessSpec(cloud="aws", region=settings.pinecone_env),
                 )
             else:
-                logger.info(f"Índice '{INDEX_NAME}' ya existe")
+                logger.info(f"Índice '{index_name}' ya existe")
             
-            self._index = self.pc.Index(INDEX_NAME)
+            self._index = await asyncio.to_thread(self.pc.Index, index_name)
         except Exception as e:
             logger.error(f"Error conectando a Pinecone: {e}")
             raise
@@ -66,13 +69,16 @@ class RAGService:
             await self.initialize_index()
 
         try:
+            # Operaciones CPU-bound en thread separado
             loader = PyPDFLoader(str(file_path))
-            pages = loader.load()
-            chunks = self._splitter.split_documents(pages)
+            pages = await asyncio.to_thread(loader.load)
+            chunks = await asyncio.to_thread(self._splitter.split_documents, pages)
             
             vectors = []
             for i, chunk in enumerate(chunks):
-                embedding = self._embeddings.embed_query(chunk.page_content)
+                embedding = await asyncio.to_thread(
+                    self._embeddings.embed_query, chunk.page_content
+                )
                 vectors.append({
                     "id": f"{file_path.stem}_{i}",
                     "values": embedding,
@@ -86,7 +92,7 @@ class RAGService:
             # Upsert en batches de 100
             for batch_start in range(0, len(vectors), 100):
                 batch = vectors[batch_start : batch_start + 100]
-                self._index.upsert(vectors=batch)
+                await asyncio.to_thread(self._index.upsert, vectors=batch)
             
             logger.info(f"Ingestados {len(chunks)} chunks de '{file_path.name}'")
             return len(chunks)
@@ -107,8 +113,11 @@ class RAGService:
             await self.initialize_index()
 
         try:
-            query_embedding = self._embeddings.embed_query(query)
-            results = self._index.query(
+            query_embedding = await asyncio.to_thread(
+                self._embeddings.embed_query, query
+            )
+            results = await asyncio.to_thread(
+                self._index.query,
                 vector=query_embedding,
                 top_k=k,
                 include_metadata=True,
@@ -133,14 +142,16 @@ class RAGService:
             logger.error(f"Error en similarity_search: {e}")
             raise
 
+    async def health_check(self) -> bool:
+        """Verifica conectividad con Pinecone."""
+        try:
+            await asyncio.to_thread(self.pc.list_indexes)
+            return True
+        except Exception:
+            return False
 
-# Singleton
-_rag_service: RAGService | None = None
 
-
+@lru_cache
 def get_rag_service() -> RAGService:
-    """Retorna instancia singleton del RAGService."""
-    global _rag_service
-    if _rag_service is None:
-        _rag_service = RAGService()
-    return _rag_service
+    """Retorna instancia singleton thread-safe del RAGService."""
+    return RAGService()

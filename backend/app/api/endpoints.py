@@ -21,16 +21,15 @@ async def ingest_document(file: UploadFile):
             detail="Solo se permiten archivos PDF",
         )
 
+    tmp_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp_path = Path(tmp.name)  # Asignar antes de cualquier operacion
             content = await file.read()
             tmp.write(content)
-            tmp_path = Path(tmp.name)
 
         rag = get_rag_service()
         chunks = await rag.ingest_document(tmp_path)
-        
-        tmp_path.unlink(missing_ok=True)
         
         logger.info(f"Documento '{file.filename}' procesado: {chunks} chunks")
         return IngestResponse(
@@ -45,6 +44,9 @@ async def ingest_document(file: UploadFile):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error procesando documento: {str(e)}",
         )
+    finally:
+        if tmp_path:
+            tmp_path.unlink(missing_ok=True)
 
 
 @router.post("/chat", response_model=QueryResponse)

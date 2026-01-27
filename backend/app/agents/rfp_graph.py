@@ -23,30 +23,42 @@ async def retrieve_node(state: AgentState) -> dict:
     """Recupera documentos relevantes del vector store."""
     logger.node_enter("retrieve", state)
     
-    rag = get_rag_service()
-    documents = await rag.similarity_search(state["question"])
-    
-    logger.node_exit("retrieve", f"{len(documents)} docs encontrados")
-    return {"context": documents}
+    try:
+        rag = get_rag_service()
+        documents = await rag.similarity_search(state["question"])
+        logger.node_exit("retrieve", f"{len(documents)} docs encontrados")
+        return {"context": documents}
+    except Exception as e:
+        logger.error("retrieve", e)
+        return {"context": []}
 
 
 async def generate_node(state: AgentState) -> dict:
     """Genera respuesta basada en el contexto recuperado."""
     logger.node_enter("generate", state)
     
-    context_text = "\n\n".join(doc.page_content for doc in state["context"])
-    
-    llm = get_llm()
-    messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(content=f"Contexto:\n{context_text}\n\nPregunta: {state['question']}"),
-    ]
-    
-    response = await llm.ainvoke(messages)
-    answer = response.content
-    
-    logger.node_exit("generate", f"{len(answer)} chars")
-    return {"answer": answer}
+    try:
+        context_text = "\n\n".join(doc.page_content for doc in state["context"])
+        
+        if not context_text.strip():
+            answer = "No encontre informacion relevante para responder tu pregunta."
+            logger.node_exit("generate", "sin contexto")
+            return {"answer": answer}
+        
+        llm = get_llm()
+        messages = [
+            SystemMessage(content=SYSTEM_PROMPT),
+            HumanMessage(content=f"Contexto:\n{context_text}\n\nPregunta: {state['question']}"),
+        ]
+        
+        response = await llm.ainvoke(messages)
+        answer = response.content
+        
+        logger.node_exit("generate", f"{len(answer)} chars")
+        return {"answer": answer}
+    except Exception as e:
+        logger.error("generate", e)
+        return {"answer": "Ocurrio un error procesando tu pregunta. Intenta nuevamente."}
 
 
 # Construcción del grafo
