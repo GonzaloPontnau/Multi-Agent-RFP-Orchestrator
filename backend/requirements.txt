@@ -16,9 +16,10 @@ langchain>=0.1.0
 langgraph>=0.0.20
 langchain-groq>=0.1.0
 langchain-huggingface>=0.0.1
+sentence-transformers>=2.2.0
 
 # Vector Database
-pinecone-client>=3.0.0
+pinecone>=5.0.0
 
 # Document Processing
 pypdf>=4.0.0
