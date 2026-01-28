@@ -4,19 +4,7 @@ import { ChatMessage } from "./components/ChatMessage";
 import { PromptSuggestions } from "./components/PromptSuggestions";
 import { Sidebar } from "./components/Sidebar";
 import { useRFP } from "./hooks/useRFP";
-
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  sources?: string[];
-}
-
-interface Document {
-  name: string;
-  chunks: number;
-  uploadedAt: Date;
-}
+import type { Document, Message } from "./types";
 
 export default function App() {
   const { loading, error, uploadDocument, askQuestion, clearError } = useRFP();

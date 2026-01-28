@@ -1,6 +1,7 @@
 import asyncio
-from functools import lru_cache
+from functools import lru_cache, wraps
 from pathlib import Path
+from typing import Callable, TypeVar
 
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
@@ -12,6 +13,18 @@ from app.core.logging import get_logger
 from app.services.embeddings import EMBEDDING_DIMENSION, get_embeddings
 
 logger = get_logger(__name__)
+
+T = TypeVar("T")
+
+
+def _ensure_index(method: Callable[..., T]) -> Callable[..., T]:
+    """Decorador que asegura la inicializacion del indice antes de ejecutar el metodo."""
+    @wraps(method)
+    async def wrapper(self: "RAGService", *args, **kwargs) -> T:
+        if self._index is None:
+            await self.initialize_index()
+        return await method(self, *args, **kwargs)
+    return wrapper
 
 
 class RAGService:
@@ -58,6 +71,7 @@ class RAGService:
             logger.error(f"Error conectando a Pinecone: {e}")
             raise
 
+    @_ensure_index
     async def ingest_document(self, file_path: Path, original_filename: str | None = None) -> int:
         """
         Procesa un PDF y sube los chunks a Pinecone.
@@ -69,9 +83,6 @@ class RAGService:
         Returns:
             Número de chunks procesados
         """
-        if self._index is None:
-            await self.initialize_index()
-
         source_name = original_filename or file_path.name
         source_id = Path(source_name).stem
 
@@ -108,6 +119,7 @@ class RAGService:
             logger.error(f"Error procesando documento '{file_path}': {e}")
             raise
 
+    @_ensure_index
     async def similarity_search(self, query: str, k: int = 10) -> list[Document]:
         """
         Busca documentos relevantes para una query.
@@ -116,9 +128,6 @@ class RAGService:
             query: Texto de búsqueda
             k: Número de resultados
         """
-        if self._index is None:
-            await self.initialize_index()
-
         try:
             query_embedding = await asyncio.to_thread(
                 self._embeddings.embed_query, query
@@ -157,11 +166,9 @@ class RAGService:
         except Exception:
             return False
 
+    @_ensure_index
     async def clear_index(self) -> bool:
         """Elimina todos los vectores del índice."""
-        if self._index is None:
-            await self.initialize_index()
-        
         try:
             await asyncio.to_thread(self._index.delete, delete_all=True)
             logger.info("Índice limpiado exitosamente")
@@ -170,11 +177,9 @@ class RAGService:
             logger.error(f"Error limpiando índice: {e}")
             return False
 
+    @_ensure_index
     async def get_stats(self) -> dict:
         """Obtiene estadísticas del índice."""
-        if self._index is None:
-            await self.initialize_index()
-        
         try:
             stats = await asyncio.to_thread(self._index.describe_index_stats)
             return {

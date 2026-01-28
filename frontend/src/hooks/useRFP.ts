@@ -1,17 +1,7 @@
 import { useCallback, useState } from "react";
+import type { ChatResponse, IngestResponse } from "../types";
 
 const API_URL = "/api";
-
-interface IngestResponse {
-  status: string;
-  filename: string;
-  chunks_processed: number;
-}
-
-interface ChatResponse {
-  answer: string;
-  sources: string[];
-}
 
 interface UseRFPReturn {
   loading: boolean;
@@ -25,24 +15,20 @@ export function useRFP(): UseRFPReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const uploadDocument = useCallback(async (file: File): Promise<IngestResponse | null> => {
+  const apiCall = useCallback(async <T>(
+    endpoint: string,
+    options: RequestInit,
+    errorMsg: string
+  ): Promise<T | null> => {
     setLoading(true);
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch(`${API_URL}/ingest`, {
-        method: "POST",
-        body: formData,
-      });
-
+      const response = await fetch(`${API_URL}${endpoint}`, options);
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.detail || "Error al subir documento");
+        throw new Error(err.detail || errorMsg);
       }
-
       return await response.json();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error desconocido");
@@ -51,31 +37,20 @@ export function useRFP(): UseRFPReturn {
       setLoading(false);
     }
   }, []);
+
+  const uploadDocument = useCallback(async (file: File): Promise<IngestResponse | null> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiCall<IngestResponse>("/ingest", { method: "POST", body: formData }, "Error al subir documento");
+  }, [apiCall]);
 
   const askQuestion = useCallback(async (question: string): Promise<ChatResponse | null> => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`${API_URL}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.detail || "Error al procesar pregunta");
-      }
-
-      return await response.json();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error desconocido");
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    return apiCall<ChatResponse>("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    }, "Error al procesar pregunta");
+  }, [apiCall]);
 
   const clearError = useCallback(() => setError(null), []);
 

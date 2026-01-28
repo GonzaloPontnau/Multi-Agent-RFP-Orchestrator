@@ -80,6 +80,11 @@ class AgentState(TypedDict):
     revision_count: int
 
 
+def _get_docs(state: AgentState) -> list[Document]:
+    """Obtiene documentos del estado priorizando filtered_context."""
+    return state.get("filtered_context") or state.get("context", [])
+
+
 async def retrieve_node(state: AgentState) -> dict:
     """Recupera documentos relevantes del vector store."""
     logger.node_enter("retrieve", state)
@@ -132,7 +137,7 @@ async def generate_node(state: AgentState) -> dict:
     logger.node_enter("generate", state)
     
     try:
-        docs = state.get("filtered_context") or state.get("context", [])
+        docs = _get_docs(state)
         context_text = "\n\n---\n\n".join(doc.page_content for doc in docs)
         
         if not context_text.strip():
@@ -161,7 +166,7 @@ async def auditor_node(state: AgentState) -> dict:
     logger.node_enter("auditor", state)
     
     try:
-        docs = state.get("filtered_context") or state.get("context", [])
+        docs = _get_docs(state)
         context_text = "\n\n".join(doc.page_content for doc in docs)
         
         llm = get_llm(temperature=0.0)
@@ -187,7 +192,7 @@ async def refine_node(state: AgentState) -> dict:
     logger.node_enter("refine", state)
     
     try:
-        docs = state.get("filtered_context") or state.get("context", [])
+        docs = _get_docs(state)
         context_text = "\n\n---\n\n".join(doc.page_content for doc in docs)
         
         llm = get_llm(temperature=0.1)

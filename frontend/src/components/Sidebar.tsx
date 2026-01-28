@@ -1,10 +1,5 @@
 import { useState } from "react";
-
-interface Document {
-  name: string;
-  chunks: number;
-  uploadedAt: Date;
-}
+import type { Document } from "../types";
 
 interface SidebarProps {
   documents: Document[];
