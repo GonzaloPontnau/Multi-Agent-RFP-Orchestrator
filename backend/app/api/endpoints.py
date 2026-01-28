@@ -88,6 +88,8 @@ async def get_index_stats():
 @router.post("/chat", response_model=QueryResponse)
 async def chat(request: QueryRequest):
     """Procesa una pregunta usando el grafo de agentes."""
+    logger.info(f"[CHAT] Nueva consulta: {request.question[:80]}...")
+    
     try:
         result = await rfp_app.ainvoke({
             "question": request.question,
@@ -106,10 +108,17 @@ async def chat(request: QueryRequest):
             if doc.metadata.get("source")
         })
 
+        logger.info(
+            f"[CHAT] Respuesta generada | "
+            f"Docs: {len(docs)} | Sources: {sources} | "
+            f"Revisiones: {result.get('revision_count', 0)} | "
+            f"Audit: {result.get('audit_result', 'N/A')}"
+        )
+
         return QueryResponse(answer=result["answer"], sources=sources)
 
     except Exception as e:
-        logger.error(f"Error en chat: {e}")
+        logger.error(f"[CHAT] Error procesando consulta: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error procesando pregunta: {str(e)}",

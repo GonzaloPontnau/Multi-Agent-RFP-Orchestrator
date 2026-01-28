@@ -11,7 +11,15 @@ logger = AgentLogger("rfp_graph")
 
 # Prompts especializados para cada agente
 SYSTEM_PROMPT = """Eres un experto en licitaciones. Responde solo con la información provista.
-Si la información no está en el contexto, indica que no tienes datos suficientes para responder."""
+Si la información no está en el contexto, indica que no tienes datos suficientes para responder.
+
+FORMATO DE RESPUESTA:
+- Usa listas con viñetas (-) para enumerar elementos
+- Usa listas numeradas (1., 2., 3.) para secuencias o pasos
+- Separa secciones con títulos en **negrita** cuando haya múltiples categorías
+- Para montos o fechas importantes, resáltalos en **negrita**
+- Mantén las respuestas organizadas y fáciles de leer
+- NO uses formato de código ni bloques de texto plano"""
 
 GRADER_PROMPT = """Eres un evaluador de relevancia documental. Tu tarea es determinar si un documento
 contiene información relevante para responder la pregunta del usuario.
@@ -102,13 +110,14 @@ async def grade_documents_node(state: AgentState) -> dict:
             response = await llm.ainvoke([HumanMessage(content=prompt)])
             grade = response.content.strip().lower()
             
-            if "relevant" in grade and "not_relevant" not in grade:
+            is_relevant = "relevant" in grade and "not_relevant" not in grade
+            if is_relevant:
                 relevant_docs.append(doc)
-                logger.debug("grade_documents", f"Doc relevante (score: {doc.metadata.get('score', 'N/A')})")
+            logger.debug("grade_documents", f"Doc (score: {doc.metadata.get('score', 'N/A')}) -> {grade}")
         
         # Si no hay docs relevantes, usar todos los originales como fallback
         if not relevant_docs:
-            logger.debug("grade_documents", "Sin docs relevantes, usando originales")
+            logger.debug("grade_documents", "Sin docs relevantes, usando originales como fallback")
             relevant_docs = state["context"][:5]
         
         logger.node_exit("grade_documents", f"{len(relevant_docs)} docs filtrados")

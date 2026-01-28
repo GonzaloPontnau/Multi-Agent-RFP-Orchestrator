@@ -45,16 +45,17 @@ class AgentLogger:
         self.agent_name = agent_name
 
     def node_enter(self, node: str, state: dict | None = None) -> None:
-        self._logger.info(f"[{node}] Entrando | State keys: {list(state.keys()) if state else 'N/A'}")
+        question = state.get("question", "N/A")[:50] if state else "N/A"
+        self._logger.info(f"[{node}] >>> Entrando | Question: {question}...")
 
     def node_exit(self, node: str, result: str | None = None) -> None:
-        self._logger.info(f"[{node}] Saliendo | Result: {result or 'OK'}")
+        self._logger.info(f"[{node}] <<< Saliendo | {result or 'OK'}")
 
     def decision(self, node: str, condition: str, outcome: str) -> None:
         self._logger.info(f"[{node}] Decision: {condition} -> {outcome}")
 
     def error(self, node: str, error: Exception) -> None:
-        self._logger.error(f"[{node}] Error: {type(error).__name__}: {error}")
+        self._logger.error(f"[{node}] ERROR: {type(error).__name__}: {error}", exc_info=True)
 
-    def debug(self, message: str) -> None:
-        self._logger.debug(message)
+    def debug(self, node: str, message: str) -> None:
+        self._logger.debug(f"[{node}] {message}")
