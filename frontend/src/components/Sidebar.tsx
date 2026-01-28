@@ -127,16 +127,6 @@ export function Sidebar({ documents, onUpload, loading }: SidebarProps) {
         )}
       </div>
 
-      {/* Footer */}
-      <div className="p-5">
-        <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-slate-800/30">
-          <div className="relative">
-            <div className="w-2.5 h-2.5 bg-green-500 rounded-full" />
-            <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-30" />
-          </div>
-          <span className="text-xs text-slate-500">Sistema activo</span>
-        </div>
-      </div>
     </aside>
   );
 }

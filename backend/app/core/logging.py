@@ -8,6 +8,15 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 _LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
+# Símbolos para visualizar el flujo
+FLOW_SYMBOLS = {
+    "start": "╔",
+    "node": "║",
+    "arrow": "→",
+    "end": "╚",
+    "route": "◆",
+}
+
 
 def _configure_root_logger(level: LogLevel) -> None:
     """Configura el logger raíz una sola vez."""
@@ -44,15 +53,50 @@ class AgentLogger:
         self._logger = get_logger(f"agent.{agent_name}")
         self.agent_name = agent_name
 
+    def pipeline_start(self, question: str) -> None:
+        """Log inicio del pipeline de agentes."""
+        self._logger.info("=" * 70)
+        self._logger.info(f"{FLOW_SYMBOLS['start']}══ PIPELINE START ══════════════════════════════════════════════════")
+        self._logger.info(f"{FLOW_SYMBOLS['node']} Question: {question[:100]}{'...' if len(question) > 100 else ''}")
+        self._logger.info(f"{FLOW_SYMBOLS['node']} Flow: START → retrieve → grade_documents → router → specialist → auditor → END")
+        self._logger.info("=" * 70)
+
+    def pipeline_end(self, state: dict) -> None:
+        """Log fin del pipeline con resumen."""
+        domain = state.get("domain", "N/A")
+        docs_total = len(state.get("context", []))
+        docs_filtered = len(state.get("filtered_context", []))
+        revisions = state.get("revision_count", 0)
+        audit = state.get("audit_result", "N/A")
+        answer_len = len(state.get("answer", ""))
+        
+        self._logger.info("=" * 70)
+        self._logger.info(f"{FLOW_SYMBOLS['end']}══ PIPELINE COMPLETE ═══════════════════════════════════════════════")
+        self._logger.info(f"   {FLOW_SYMBOLS['route']} Domain Selected: {domain.upper()}")
+        self._logger.info(f"   {FLOW_SYMBOLS['route']} Specialist Used: specialist_{domain}")
+        self._logger.info(f"   {FLOW_SYMBOLS['route']} Documents: {docs_total} retrieved → {docs_filtered} filtered")
+        self._logger.info(f"   {FLOW_SYMBOLS['route']} Revisions: {revisions} | Audit: {audit}")
+        self._logger.info(f"   {FLOW_SYMBOLS['route']} Answer Length: {answer_len} chars")
+        self._logger.info("=" * 70)
+
     def node_enter(self, node: str, state: dict | None = None) -> None:
         question = state.get("question", "N/A")[:50] if state else "N/A"
-        self._logger.info(f"[{node}] >>> Entrando | Question: {question}...")
+        self._logger.info(f"{FLOW_SYMBOLS['node']} [{node.upper()}] {FLOW_SYMBOLS['arrow']} Entering | Q: {question}...")
 
     def node_exit(self, node: str, result: str | None = None) -> None:
-        self._logger.info(f"[{node}] <<< Saliendo | {result or 'OK'}")
+        self._logger.info(f"{FLOW_SYMBOLS['node']} [{node.upper()}] {FLOW_SYMBOLS['arrow']} Exiting | {result or 'OK'}")
+
+    def routing_decision(self, from_node: str, to_node: str, reason: str) -> None:
+        """Log decisión de enrutamiento entre nodos."""
+        self._logger.info(f"{FLOW_SYMBOLS['route']} ROUTING: {from_node} → {to_node} | Reason: {reason}")
+
+    def specialist_selected(self, domain: str, question: str) -> None:
+        """Log selección de especialista."""
+        self._logger.info(f"{FLOW_SYMBOLS['route']} SPECIALIST SELECTED: specialist_{domain}")
+        self._logger.info(f"   └─ Domain '{domain}' best matches question type")
 
     def error(self, node: str, error: Exception) -> None:
-        self._logger.error(f"[{node}] ERROR: {type(error).__name__}: {error}", exc_info=True)
+        self._logger.error(f"{FLOW_SYMBOLS['node']} [{node.upper()}] ERROR: {type(error).__name__}: {error}", exc_info=True)
 
     def debug(self, node: str, message: str) -> None:
-        self._logger.debug(f"[{node}] {message}")
+        self._logger.debug(f"{FLOW_SYMBOLS['node']} [{node}] {message}")
