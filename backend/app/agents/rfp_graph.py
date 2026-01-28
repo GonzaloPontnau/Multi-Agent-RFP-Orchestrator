@@ -6,21 +6,11 @@ from langgraph.graph import END, START, StateGraph
 
 from app.core.logging import AgentLogger
 from app.services import get_llm, get_rag_service
+from app.agents.subagents import route_question, specialist_generate, DOMAINS
 
 logger = AgentLogger("rfp_graph")
 
-# Prompts especializados para cada agente
-SYSTEM_PROMPT = """Eres un experto en licitaciones. Responde solo con la información provista.
-Si la información no está en el contexto, indica que no tienes datos suficientes para responder.
-
-FORMATO DE RESPUESTA:
-- Usa listas con viñetas (-) para enumerar elementos
-- Usa listas numeradas (1., 2., 3.) para secuencias o pasos
-- Separa secciones con títulos en **negrita** cuando haya múltiples categorías
-- Para montos o fechas importantes, resáltalos en **negrita**
-- Mantén las respuestas organizadas y fáciles de leer
-- NO uses formato de código ni bloques de texto plano"""
-
+# Prompts para nodos de soporte (grader, auditor, refine)
 GRADER_PROMPT = """Eres un evaluador de relevancia documental. Tu tarea es determinar si un documento
 contiene información relevante para responder la pregunta del usuario.
 
@@ -38,6 +28,9 @@ AUDITOR_PROMPT = """Eres un auditor de calidad de respuestas para licitaciones. 
 1. Responde directamente la pregunta
 2. Contiene información específica (números, fechas, listas concretas)
 3. NO dice "no tengo datos" si hay información relevante en el contexto
+4. Es coherente con el dominio de especialización asignado
+
+Dominio del especialista: {domain}
 
 Contexto disponible:
 {context}
@@ -50,14 +43,15 @@ Respuesta generada:
 
 Responde SOLO "pass" si la respuesta es adecuada, o "fail" si necesita mejora (sin explicación adicional)."""
 
-REFINE_PROMPT = """Eres un experto en licitaciones. La respuesta anterior fue insuficiente.
-Revisa CUIDADOSAMENTE todo el contexto y extrae la información relevante.
+REFINE_PROMPT = """Eres un experto en licitaciones especializado en el dominio: {domain}.
+La respuesta anterior fue insuficiente. Revisa CUIDADOSAMENTE todo el contexto.
 
-Busca específicamente:
-- Números, montos, porcentajes
-- Fechas y plazos
-- Listas y enumeraciones
-- Condiciones y requisitos
+Busca específicamente según tu dominio:
+- legal: normativas, artículos, obligaciones, sanciones
+- technical: tecnologías, arquitectura, integraciones, SLAs técnicos
+- financial: montos, porcentajes, garantías, pagos
+- timeline: fechas, plazos, cronogramas, hitos
+- requirements: requisitos, experiencia, personal, capacidades
 
 Contexto completo:
 {context}
@@ -75,9 +69,20 @@ class AgentState(TypedDict):
     question: str
     context: list[Document]
     filtered_context: list[Document]
+    domain: str  # Dominio clasificado por el router
     answer: str
     audit_result: str
     revision_count: int
+    # Campos para QuanT (Analista Cuantitativo)
+    quant_chart: str | None
+    quant_chart_type: str | None
+    quant_insights: str | None
+    quant_data_quality: str | None
+    # Campos para Risk Sentinel (Auditor de Compliance)
+    risk_level: str | None
+    compliance_status: str | None
+    risk_issues: list[str]
+    gate_passed: bool | None
 
 
 def _get_docs(state: AgentState) -> list[Document]:
@@ -87,12 +92,16 @@ def _get_docs(state: AgentState) -> list[Document]:
 
 async def retrieve_node(state: AgentState) -> dict:
     """Recupera documentos relevantes del vector store."""
+    # Log inicio del pipeline completo
+    logger.pipeline_start(state["question"])
     logger.node_enter("retrieve", state)
+    logger.routing_decision("START", "retrieve", "Initial node - fetching documents from vector store")
     
     try:
         rag = get_rag_service()
         documents = await rag.similarity_search(state["question"], k=10)
-        logger.node_exit("retrieve", f"{len(documents)} docs encontrados")
+        logger.node_exit("retrieve", f"{len(documents)} docs retrieved from Pinecone")
+        logger.routing_decision("retrieve", "grade_documents", f"Passing {len(documents)} docs for relevance filtering")
         return {"context": documents, "revision_count": 0}
     except Exception as e:
         logger.error("retrieve", e)
@@ -106,8 +115,9 @@ async def grade_documents_node(state: AgentState) -> dict:
     try:
         llm = get_llm(temperature=0.0)
         relevant_docs = []
+        total_docs = len(state["context"])
         
-        for doc in state["context"]:
+        for i, doc in enumerate(state["context"], 1):
             prompt = GRADER_PROMPT.format(
                 document=doc.page_content[:1500],
                 question=state["question"]
@@ -118,46 +128,57 @@ async def grade_documents_node(state: AgentState) -> dict:
             is_relevant = "relevant" in grade and "not_relevant" not in grade
             if is_relevant:
                 relevant_docs.append(doc)
-            logger.debug("grade_documents", f"Doc (score: {doc.metadata.get('score', 'N/A')}) -> {grade}")
+            logger.debug("grade_documents", f"Doc {i}/{total_docs} (score: {doc.metadata.get('score', 'N/A')}) -> {grade}")
         
         # Si no hay docs relevantes, usar todos los originales como fallback
         if not relevant_docs:
-            logger.debug("grade_documents", "Sin docs relevantes, usando originales como fallback")
+            logger.debug("grade_documents", "No relevant docs found, using top 5 as fallback")
             relevant_docs = state["context"][:5]
         
-        logger.node_exit("grade_documents", f"{len(relevant_docs)} docs filtrados")
+        logger.node_exit("grade_documents", f"{len(relevant_docs)}/{total_docs} docs marked as relevant")
+        logger.routing_decision("grade_documents", "router", f"Sending {len(relevant_docs)} relevant docs to router for domain classification")
         return {"filtered_context": relevant_docs}
     except Exception as e:
         logger.error("grade_documents", e)
         return {"filtered_context": state["context"][:5]}
 
 
-async def generate_node(state: AgentState) -> dict:
-    """Genera respuesta basada en el contexto filtrado."""
-    logger.node_enter("generate", state)
+async def router_node(state: AgentState) -> dict:
+    """Clasifica la pregunta y la dirige al subagente especializado apropiado."""
+    logger.node_enter("router", state)
+    
+    try:
+        domain = await route_question(state["question"])
+        logger.specialist_selected(domain, state["question"])
+        logger.node_exit("router", f"classified as '{domain}' domain")
+        logger.routing_decision("router", f"specialist_{domain}", f"Question classified as {domain.upper()} - routing to specialized subagent")
+        return {"domain": domain}
+    except Exception as e:
+        logger.error("router", e)
+        logger.routing_decision("router", "specialist_general", "Error in classification - defaulting to general specialist")
+        return {"domain": "general"}
+
+
+async def specialist_node(state: AgentState) -> dict:
+    """Genera respuesta usando el subagente especializado según el dominio clasificado."""
+    domain = state.get("domain", "general")
+    logger.node_enter(f"specialist_{domain}", state)
     
     try:
         docs = _get_docs(state)
-        context_text = "\n\n---\n\n".join(doc.page_content for doc in docs)
+        logger.debug(f"specialist_{domain}", f"Using {len(docs)} docs with specialized {domain.upper()} prompt")
         
-        if not context_text.strip():
-            answer = "No encontré información relevante para responder tu pregunta."
-            logger.node_exit("generate", "sin contexto")
-            return {"answer": answer}
+        answer = await specialist_generate(
+            question=state["question"],
+            context=docs,
+            domain=domain
+        )
         
-        llm = get_llm()
-        messages = [
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=f"Contexto:\n{context_text}\n\nPregunta: {state['question']}"),
-        ]
-        
-        response = await llm.ainvoke(messages)
-        answer = response.content
-        
-        logger.node_exit("generate", f"{len(answer)} chars")
+        logger.node_exit(f"specialist_{domain}", f"Generated {len(answer)} chars response")
+        logger.routing_decision(f"specialist_{domain}", "auditor", "Response generated - sending to auditor for quality check")
         return {"answer": answer}
     except Exception as e:
-        logger.error("generate", e)
+        logger.error(f"specialist_{domain}", e)
         return {"answer": "Ocurrió un error procesando tu pregunta. Intenta nuevamente."}
 
 
@@ -168,9 +189,12 @@ async def auditor_node(state: AgentState) -> dict:
     try:
         docs = _get_docs(state)
         context_text = "\n\n".join(doc.page_content for doc in docs)
+        domain = state.get("domain", "general")
+        revision_count = state.get("revision_count", 0)
         
         llm = get_llm(temperature=0.0)
         prompt = AUDITOR_PROMPT.format(
+            domain=domain,
             context=context_text[:4000],
             question=state["question"],
             answer=state["answer"]
@@ -180,7 +204,16 @@ async def auditor_node(state: AgentState) -> dict:
         result = response.content.strip().lower()
         
         audit_result = "pass" if "pass" in result else "fail"
-        logger.node_exit("auditor", f"resultado: {audit_result}")
+        logger.node_exit("auditor", f"Quality check: {audit_result.upper()} (domain: {domain}, revision: {revision_count})")
+        
+        # Log routing decision based on audit result
+        if audit_result == "pass":
+            logger.routing_decision("auditor", "END", "Quality PASSED - finalizing response")
+        elif revision_count < 2:
+            logger.routing_decision("auditor", "refine", f"Quality FAILED - sending to refine (attempt {revision_count + 1}/2)")
+        else:
+            logger.routing_decision("auditor", "END", "Quality FAILED but max revisions reached - finalizing anyway")
+        
         return {"audit_result": audit_result}
     except Exception as e:
         logger.error("auditor", e)
@@ -188,8 +221,11 @@ async def auditor_node(state: AgentState) -> dict:
 
 
 async def refine_node(state: AgentState) -> dict:
-    """Mejora una respuesta que no pasó la auditoría."""
+    """Mejora una respuesta que no pasó la auditoría, usando contexto del dominio."""
+    domain = state.get("domain", "general")
+    current_revision = state.get("revision_count", 0) + 1
     logger.node_enter("refine", state)
+    logger.debug("refine", f"Revision #{current_revision} - Improving answer using {domain.upper()} specialist prompt")
     
     try:
         docs = _get_docs(state)
@@ -197,6 +233,7 @@ async def refine_node(state: AgentState) -> dict:
         
         llm = get_llm(temperature=0.1)
         prompt = REFINE_PROMPT.format(
+            domain=domain,
             context=context_text,
             question=state["question"],
             previous_answer=state["answer"]
@@ -205,12 +242,111 @@ async def refine_node(state: AgentState) -> dict:
         response = await llm.ainvoke([HumanMessage(content=prompt)])
         refined_answer = response.content
         
-        new_count = state.get("revision_count", 0) + 1
-        logger.node_exit("refine", f"revisión #{new_count}")
-        return {"answer": refined_answer, "revision_count": new_count}
+        logger.node_exit("refine", f"Revision #{current_revision} complete - {len(refined_answer)} chars")
+        logger.routing_decision("refine", "auditor", f"Refined answer ready - re-checking quality (revision {current_revision})")
+        return {"answer": refined_answer, "revision_count": current_revision}
     except Exception as e:
         logger.error("refine", e)
-        return {"revision_count": state.get("revision_count", 0) + 1}
+        return {"revision_count": current_revision}
+
+
+async def quant_node(state: AgentState) -> dict:
+    """Nodo para análisis cuantitativo con QuanT."""
+    domain = state.get("domain", "general")
+    
+    # Solo ejecutar si el dominio es quantitative
+    if domain != "quantitative":
+        logger.debug("quant", f"Skipping QuanT - domain is {domain}")
+        return {}
+    
+    logger.node_enter("quant", state)
+    
+    try:
+        from app.agents.quant import quant_analyze
+        
+        docs = _get_docs(state)
+        chart_b64, chart_type, insights, data_quality = await quant_analyze(
+            state["question"],
+            docs
+        )
+        
+        logger.node_exit("quant", f"chart_type={chart_type}, quality={data_quality}")
+        logger.routing_decision("quant", "risk_sentinel", "Quantitative analysis complete - sending to risk audit")
+        
+        return {
+            "quant_chart": chart_b64,
+            "quant_chart_type": chart_type,
+            "quant_insights": insights,
+            "quant_data_quality": data_quality,
+            "answer": insights,  # El insight es la respuesta para dominio quantitative
+        }
+    except Exception as e:
+        logger.error("quant", e)
+        return {
+            "quant_chart": None,
+            "quant_chart_type": "none",
+            "quant_insights": "Error al procesar análisis cuantitativo.",
+            "quant_data_quality": "incomplete",
+            "answer": "Error al procesar análisis cuantitativo.",
+        }
+
+
+async def risk_sentinel_node(state: AgentState) -> dict:
+    """Nodo de auditoría avanzada con Risk Sentinel."""
+    logger.node_enter("risk_sentinel", state)
+    
+    try:
+        from app.agents.risk_sentinel import risk_audit
+        
+        docs = _get_docs(state)
+        risk_level, compliance, issues, gate_passed = await risk_audit(
+            state["answer"],
+            docs,
+            state["question"]
+        )
+        
+        # Determinar audit_result basado en compliance
+        audit_result = "pass" if compliance != "rejected" else "fail"
+        
+        logger.node_exit(
+            "risk_sentinel",
+            f"risk={risk_level}, compliance={compliance}, gate={gate_passed}"
+        )
+        
+        # Log routing decision
+        if compliance == "rejected":
+            revision_count = state.get("revision_count", 0)
+            if revision_count < 2:
+                logger.routing_decision("risk_sentinel", "refine", f"REJECTED - sending to refine (attempt {revision_count + 1}/2)")
+            else:
+                logger.routing_decision("risk_sentinel", "END", "REJECTED but max revisions reached")
+        else:
+            logger.routing_decision("risk_sentinel", "END", f"Compliance {compliance.upper()} - finalizing")
+        
+        return {
+            "risk_level": risk_level,
+            "compliance_status": compliance,
+            "risk_issues": issues,
+            "gate_passed": gate_passed,
+            "audit_result": audit_result,
+        }
+    except Exception as e:
+        logger.error("risk_sentinel", e)
+        return {
+            "risk_level": "medium",
+            "compliance_status": "approved",
+            "risk_issues": [f"Error en auditoría: {str(e)}"],
+            "gate_passed": True,
+            "audit_result": "pass",
+        }
+
+
+def route_after_router(state: AgentState) -> Literal["specialist", "quant"]:
+    """Decide si usar el especialista normal o QuanT según el dominio."""
+    domain = state.get("domain", "general")
+    if domain == "quantitative":
+        return "quant"
+    return "specialist"
 
 
 def should_continue_after_audit(state: AgentState) -> Literal["refine", "end"]:
@@ -223,22 +359,41 @@ def should_continue_after_audit(state: AgentState) -> Literal["refine", "end"]:
     return "end"
 
 
-# Construcción del grafo multi-agente
+# Construcción del grafo multi-agente con subagentes especializados
 workflow = StateGraph(AgentState)
 
+# Nodos del pipeline
 workflow.add_node("retrieve", retrieve_node)
 workflow.add_node("grade_documents", grade_documents_node)
-workflow.add_node("generate", generate_node)
-workflow.add_node("auditor", auditor_node)
+workflow.add_node("router", router_node)
+workflow.add_node("specialist", specialist_node)
+workflow.add_node("quant", quant_node)  # QuanT: Analista Cuantitativo
+workflow.add_node("risk_sentinel", risk_sentinel_node)  # Risk Sentinel: Auditor de Compliance
+workflow.add_node("auditor", auditor_node)  # Auditor simple (fallback)
 workflow.add_node("refine", refine_node)
 
+# Flujo principal
 workflow.add_edge(START, "retrieve")
 workflow.add_edge("retrieve", "grade_documents")
-workflow.add_edge("grade_documents", "generate")
-workflow.add_edge("generate", "auditor")
+workflow.add_edge("grade_documents", "router")
 
+# Router dirige condicionalmente a specialist o quant
 workflow.add_conditional_edges(
-    "auditor",
+    "router",
+    route_after_router,
+    {
+        "specialist": "specialist",
+        "quant": "quant",
+    }
+)
+
+# Tanto specialist como quant van a risk_sentinel
+workflow.add_edge("specialist", "risk_sentinel")
+workflow.add_edge("quant", "risk_sentinel")
+
+# Risk Sentinel decide si aprobar o refinar
+workflow.add_conditional_edges(
+    "risk_sentinel",
     should_continue_after_audit,
     {
         "refine": "refine",
@@ -246,6 +401,7 @@ workflow.add_conditional_edges(
     }
 )
 
-workflow.add_edge("refine", "auditor")
+# Refine vuelve a risk_sentinel para re-evaluación
+workflow.add_edge("refine", "risk_sentinel")
 
 app = workflow.compile()

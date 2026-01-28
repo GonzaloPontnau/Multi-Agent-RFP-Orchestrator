@@ -50,6 +50,7 @@ export default function App() {
         role: "assistant",
         content: response.answer,
         sources: response.sources,
+        agentMetadata: response.agent_metadata,
       };
       setMessages((prev) => [...prev, assistantMessage]);
     }
@@ -97,6 +98,7 @@ export default function App() {
                     role={msg.role}
                     content={msg.content}
                     sources={msg.sources}
+                    agentMetadata={msg.agentMetadata}
                   />
                 ))}
                 {loading && (

@@ -1,3 +1,17 @@
-from app.schemas.chat import IngestResponse, QueryRequest, QueryResponse
+from app.schemas.chat import (
+    AgentMetadata,
+    IngestResponse,
+    QuantAnalysis,
+    QueryRequest,
+    QueryResponse,
+    RiskAssessment,
+)
 
-__all__ = ["QueryRequest", "QueryResponse", "IngestResponse"]
+__all__ = [
+    "AgentMetadata",
+    "QueryRequest",
+    "QueryResponse",
+    "IngestResponse",
+    "QuantAnalysis",
+    "RiskAssessment",
+]
