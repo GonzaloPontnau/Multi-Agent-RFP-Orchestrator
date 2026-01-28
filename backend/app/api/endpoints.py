@@ -21,20 +21,21 @@ async def ingest_document(file: UploadFile):
             detail="Solo se permiten archivos PDF",
         )
 
+    original_filename = file.filename
     tmp_path: Path | None = None
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp_path = Path(tmp.name)  # Asignar antes de cualquier operacion
+            tmp_path = Path(tmp.name)
             content = await file.read()
             tmp.write(content)
 
         rag = get_rag_service()
-        chunks = await rag.ingest_document(tmp_path)
+        chunks = await rag.ingest_document(tmp_path, original_filename=original_filename)
         
-        logger.info(f"Documento '{file.filename}' procesado: {chunks} chunks")
+        logger.info(f"Documento '{original_filename}' procesado: {chunks} chunks")
         return IngestResponse(
             status="success",
-            filename=file.filename,
+            filename=original_filename,
             chunks_processed=chunks,
         )
 
@@ -49,6 +50,41 @@ async def ingest_document(file: UploadFile):
             tmp_path.unlink(missing_ok=True)
 
 
+@router.delete("/index")
+async def clear_index():
+    """Elimina todos los vectores del índice de Pinecone."""
+    try:
+        rag = get_rag_service()
+        success = await rag.clear_index()
+        if success:
+            return {"status": "success", "message": "Índice limpiado exitosamente"}
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error limpiando el índice",
+        )
+    except Exception as e:
+        logger.error(f"Error en clear_index: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
+@router.get("/index/stats")
+async def get_index_stats():
+    """Obtiene estadísticas del índice de Pinecone."""
+    try:
+        rag = get_rag_service()
+        stats = await rag.get_stats()
+        return stats
+    except Exception as e:
+        logger.error(f"Error en get_stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
 @router.post("/chat", response_model=QueryResponse)
 async def chat(request: QueryRequest):
     """Procesa una pregunta usando el grafo de agentes."""
@@ -56,12 +92,17 @@ async def chat(request: QueryRequest):
         result = await rfp_app.ainvoke({
             "question": request.question,
             "context": [],
+            "filtered_context": [],
             "answer": "",
+            "audit_result": "",
+            "revision_count": 0,
         })
 
+        # Usar filtered_context si existe, sino context
+        docs = result.get("filtered_context") or result.get("context", [])
         sources = list({
             doc.metadata.get("source", "")
-            for doc in result.get("context", [])
+            for doc in docs
             if doc.metadata.get("source")
         })
 

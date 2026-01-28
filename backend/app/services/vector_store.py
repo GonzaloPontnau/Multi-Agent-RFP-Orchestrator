@@ -58,15 +58,22 @@ class RAGService:
             logger.error(f"Error conectando a Pinecone: {e}")
             raise
 
-    async def ingest_document(self, file_path: Path) -> int:
+    async def ingest_document(self, file_path: Path, original_filename: str | None = None) -> int:
         """
         Procesa un PDF y sube los chunks a Pinecone.
+        
+        Args:
+            file_path: Ruta al archivo PDF
+            original_filename: Nombre original del archivo (para metadata)
         
         Returns:
             Número de chunks procesados
         """
         if self._index is None:
             await self.initialize_index()
+
+        source_name = original_filename or file_path.name
+        source_id = Path(source_name).stem
 
         try:
             # Operaciones CPU-bound en thread separado
@@ -80,11 +87,11 @@ class RAGService:
                     self._embeddings.embed_query, chunk.page_content
                 )
                 vectors.append({
-                    "id": f"{file_path.stem}_{i}",
+                    "id": f"{source_id}_{i}",
                     "values": embedding,
                     "metadata": {
                         "text": chunk.page_content,
-                        "source": file_path.name,
+                        "source": source_name,
                         "page": chunk.metadata.get("page", 0),
                     },
                 })
@@ -94,7 +101,7 @@ class RAGService:
                 batch = vectors[batch_start : batch_start + 100]
                 await asyncio.to_thread(self._index.upsert, vectors=batch)
             
-            logger.info(f"Ingestados {len(chunks)} chunks de '{file_path.name}'")
+            logger.info(f"Ingestados {len(chunks)} chunks de '{source_name}'")
             return len(chunks)
             
         except Exception as e:
@@ -149,6 +156,34 @@ class RAGService:
             return True
         except Exception:
             return False
+
+    async def clear_index(self) -> bool:
+        """Elimina todos los vectores del índice."""
+        if self._index is None:
+            await self.initialize_index()
+        
+        try:
+            await asyncio.to_thread(self._index.delete, delete_all=True)
+            logger.info("Índice limpiado exitosamente")
+            return True
+        except Exception as e:
+            logger.error(f"Error limpiando índice: {e}")
+            return False
+
+    async def get_stats(self) -> dict:
+        """Obtiene estadísticas del índice."""
+        if self._index is None:
+            await self.initialize_index()
+        
+        try:
+            stats = await asyncio.to_thread(self._index.describe_index_stats)
+            return {
+                "total_vectors": stats.total_vector_count,
+                "dimension": stats.dimension,
+            }
+        except Exception as e:
+            logger.error(f"Error obteniendo stats: {e}")
+            return {"error": str(e)}
 
 
 @lru_cache

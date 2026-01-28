@@ -33,17 +33,41 @@ Sistema de automatización de respuestas a licitaciones (RFP) basado en arquitec
 │   └── package.json
 └── README.md
 
-## 4. Flujo del Agente (LangGraph)
-State: { question: str, context: List[Doc], draft: str, critique: str, revisions: int }
+## 4. Flujo del Agente Multi-Agent (LangGraph) - IMPLEMENTADO
 
-[START] --> [Node: Retrieve] --> [Node: Grade_Documents]
-                                      |
-                               (Docs Relevantes?)
-                                      |
-                                   [Node: Generate Answer] --> [Node: Auditor_Check]
-                                                                    |
-                                                             (Pasa Calidad?)
-                                                            /              \
-                                                          NO               SI
-                                                         /                  \
-                                            [Node: Refine_Answer]        [END]
+```
+State: {
+    question: str,
+    context: List[Doc],
+    filtered_context: List[Doc],
+    answer: str,
+    audit_result: str,
+    revision_count: int
+}
+```
+
+```
+[START] --> [Retrieve (k=10)] --> [Grade_Documents]
+                                        |
+                                  (Filtra docs relevantes)
+                                        |
+                                  [Generate Answer] --> [Auditor_Check]
+                                                              |
+                                                       (Pasa Calidad?)
+                                                       /            \
+                                                     NO              SI
+                                                    /                 \
+                                          [Refine_Answer]           [END]
+                                                 |
+                                                 v
+                                          (max 2 revisiones)
+                                                 |
+                                          [Auditor_Check] <--+
+```
+
+### Descripcion de Nodos:
+- **Retrieve**: Busca k=10 chunks del vector store
+- **Grade_Documents**: LLM evalua relevancia de cada chunk para la pregunta
+- **Generate**: Genera respuesta con contexto filtrado
+- **Auditor_Check**: Verifica calidad (responde la pregunta?, tiene datos concretos?)
+- **Refine_Answer**: Mejora respuestas insuficientes (max 2 intentos)
