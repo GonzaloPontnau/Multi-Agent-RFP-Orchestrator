@@ -85,37 +85,13 @@ graph TD
 └── README.md
 ```
 
-## Getting Started
+## Strategic Value for Enterprise Leaders
 
-### Prerequisites
+The goal of this project is to demonstrate my ability to create these **Multi-Agent systems** at the corporate and enterprise levels. This system is not just software; it's a scalable and autonomous workforce designed to boost your team's productivity.
 
-*   Python 3.10+
-*   Node.js 18+
-*   API Keys for Groq and Pinecone
+### Why Integrate Multi-Agent Systems?
 
-### Installation
-
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/your-username/Multi-Agent-RFP-Orchestrator.git
-    cd Multi-Agent-RFP-Orchestrator
-    ```
-
-2.  **Backend Setup**
-    ```bash
-    cd backend
-    pip install -r requirements.txt
-    cp .env.example .env  # Configure your API keys
-    uvicorn app.main:app --reload
-    ```
-
-3.  **Frontend Setup**
-    ```bash
-    cd frontend
-    npm install
-    npm run dev
-    ```
-
-## License
-
-This project is proprietary. All rights reserved.
+*   **Operational Agility**: Reduce RFP response cycles from weeks to hours. Our agents work in parallel—parsing, retrieving, and drafting—allowing your human experts to focus purely on high-value strategy and review.
+*   **Risk Mitigation**: The dedicated **Risk Sentinel** and **Legal Auditor** agents ensure every proposal adheres strictly to your corporate compliance and risk frameworks, eliminating costly oversight errors.
+*   **Cost Efficiency**: Deploy a 24/7 digital workforce that scales instantly with demand, dramatically lowering the operational overhead of pre-sales and technical writing.
+*   **Data-Driven Decisions**: Transform your historical repository of tenders into an active knowledge asset, ensuring consistency and leveraging past successes for future wins.
