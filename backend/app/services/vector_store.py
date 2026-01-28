@@ -101,7 +101,7 @@ class RAGService:
             logger.error(f"Error procesando documento '{file_path}': {e}")
             raise
 
-    async def similarity_search(self, query: str, k: int = 5) -> list[Document]:
+    async def similarity_search(self, query: str, k: int = 10) -> list[Document]:
         """
         Busca documentos relevantes para una query.
         
