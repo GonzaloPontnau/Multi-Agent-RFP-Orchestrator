@@ -7,7 +7,7 @@ from langgraph.graph import END, START, StateGraph
 from app.core.logging import AgentLogger
 from app.core.exceptions import AgentProcessingError
 from app.services import get_llm, get_rag_service, get_container
-from app.agents.subagents import route_question, specialist_generate, DOMAINS
+from app.agents.subagents import route_question  # TODO: Migrate to RouterAgent class
 
 logger = AgentLogger("rfp_graph")
 
