@@ -6,7 +6,40 @@
     <strong>Automated Tender Response System</strong><br>
     Intelligent document ingestion, information retrieval, and professional drafting using multi-agent architecture.
   </p>
+
+  <p>
+    <a href="#live-demo-architecture">Live Demo</a> •
+    <a href="#key-features">Features</a> •
+    <a href="#architecture">Architecture</a> •
+    <a href="#deployment-guide">Deploy</a>
+  </p>
 </div>
+
+---
+
+## Live Demo Architecture
+
+This project is deployed as a **production-ready Monorepo** with a decoupled frontend and backend:
+
+| Layer | Technology | Hosting | URL |
+|-------|------------|---------|-----|
+| **Frontend** | React (Vite) + TypeScript | Vercel | [App URL] |
+| **Backend** | FastAPI (Python) | Render | [API URL] |
+| **Vector DB** | Qdrant (In-Memory) | Embedded | N/A |
+
+### Performance Note
+
+> **Important:** The backend runs on a **Free Tier** instance on Render. Please allow **up to 50 seconds** for the server to wake up on the first request. Subsequent requests will be fast.
+
+### Privacy by Design
+
+This system implements a **zero-persistence architecture** for maximum user privacy:
+
+- **In-Memory Vector Store:** The Qdrant database runs entirely in RAM. No data is written to disk.
+- **Ephemeral Sessions:** All uploaded documents and embeddings are automatically purged when the session ends or the server restarts.
+- **No Tracking:** We do not store, log, or retain any user data.
+
+This design ensures that your sensitive RFP documents are never persisted, making it ideal for evaluating confidential tenders.
 
 ---
 
@@ -84,6 +117,36 @@ graph TD
 │   └── package.json
 └── README.md
 ```
+
+---
+
+## Deployment Guide
+
+This Monorepo is designed for split deployment, with the frontend and backend hosted on different platforms.
+
+### Backend (Render)
+
+1.  **Create a new Web Service** on [Render](https://render.com/).
+2.  **Connect your GitHub repository.**
+3.  **Configure the service:**
+    *   **Root Directory:** `backend`
+    *   **Runtime:** `Docker`
+    *   **Instance Type:** Free (or higher for production)
+4.  **Set Environment Variables:**
+    *   `GROQ_API_KEY`: Your Groq API key.
+    *   `ALLOWED_ORIGINS`: Your Vercel frontend URL (e.g., `https://your-app.vercel.app`).
+
+### Frontend (Vercel)
+
+1.  **Create a new Project** on [Vercel](https://vercel.com/).
+2.  **Import your GitHub repository.**
+3.  **Configure the project:**
+    *   **Root Directory:** `frontend`
+    *   **Framework Preset:** Vite
+4.  **Set Environment Variables:**
+    *   `VITE_API_URL`: Your Render backend URL (e.g., `https://your-api.onrender.com`).
+
+---
 
 ## Strategic Value for Enterprise Leaders
 
