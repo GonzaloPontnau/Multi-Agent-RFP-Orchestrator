@@ -78,17 +78,24 @@ class AgentFactory:
         and registers them in the class-level registry.
         """
         # Import here to avoid circular imports at module level
-        from app.agents.specialists.financial_agent import FinancialSpecialistAgent
+        from app.agents.specialists import (
+            FinancialSpecialistAgent,
+            LegalSpecialistAgent,
+            TechnicalSpecialistAgent,
+            TimelineSpecialistAgent,
+            RequirementsSpecialistAgent,
+            GeneralSpecialistAgent,
+        )
 
         cls._registry = {
             "financial": FinancialSpecialistAgent,
-            # Add more agents here as they are migrated:
-            # "legal": LegalSpecialistAgent,
-            # "technical": TechnicalSpecialistAgent,
-            # "timeline": TimelineSpecialistAgent,
-            # "requirements": RequirementsSpecialistAgent,
-            # "general": GeneralSpecialistAgent,
-            # "quantitative": QuantSpecialistAgent,
+            "legal": LegalSpecialistAgent,
+            "technical": TechnicalSpecialistAgent,
+            "timeline": TimelineSpecialistAgent,
+            "requirements": RequirementsSpecialistAgent,
+            "general": GeneralSpecialistAgent,
+            # Note: "quantitative" is handled by quant_node, not specialist_node
+            # If routed here by mistake, falls back to GeneralSpecialistAgent
         }
         cls._initialized = True
 
