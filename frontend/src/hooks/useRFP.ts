@@ -1,7 +1,10 @@
 import { useCallback, useState } from "react";
 import type { ChatResponse, IngestResponse } from "../types";
 
-const API_URL = "/api";
+// For production: VITE_API_URL should be set to the backend URL (e.g., https://your-backend.onrender.com)
+// For local dev: Falls back to empty string, using Vite's proxy configuration
+const API_BASE = import.meta.env.VITE_API_URL || "";
+const API_URL = `${API_BASE}/api`;
 
 interface UseRFPReturn {
   loading: boolean;

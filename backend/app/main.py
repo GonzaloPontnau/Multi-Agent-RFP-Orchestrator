@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
@@ -9,6 +10,12 @@ from app.core import get_logger, settings
 from app.services import check_groq_health, get_rag_service
 
 logger = get_logger(__name__)
+
+
+def get_allowed_origins() -> list[str]:
+    """Get allowed CORS origins from environment variable."""
+    origins_str = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173")
+    return [origin.strip() for origin in origins_str.split(",") if origin.strip()]
 
 
 @asynccontextmanager
@@ -24,10 +31,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS - Origins from environment variable for production flexibility
+allowed_origins = get_allowed_origins()
+logger.info(f"CORS allowed origins: {allowed_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
