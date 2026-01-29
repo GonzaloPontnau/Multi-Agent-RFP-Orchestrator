@@ -18,8 +18,9 @@ langchain-groq>=0.1.0
 langchain-huggingface>=0.0.1
 sentence-transformers>=2.2.0
 
-# Vector Database
-pinecone>=5.0.0
+# Vector Database (Qdrant in-memory - zero maintenance)
+qdrant-client>=1.9.0
+langchain-qdrant>=0.1.0
 
 # Document Processing
 pypdf>=4.0.0
