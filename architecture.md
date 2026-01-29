@@ -1,20 +1,20 @@
 # RFP Multi-Agent Orchestrator - Architecture Blueprint
 
-## 1. Vision General ✅
+## 1. Vision General
 Sistema de automatizacion de respuestas a licitaciones (RFP) basado en arquitectura multi-agente con **subagentes especializados por dominio**. Utiliza un orquestador de estados (LangGraph) para coordinar la ingesta de documentos, recuperacion de informacion (RAG) y generacion de respuestas con enrutamiento inteligente.
 
-## 2. Stack Tecnologico ✅
+## 2. Stack Tecnologico
 | Componente | Tecnologia | Notas |
 |------------|------------|-------|
-| **LLM Inference** | Groq API (Llama 3.3 70B) | Alta velocidad, bajo costo ✅ |
-| **Orquestacion** | LangGraph | State Machines con subagentes ✅ |
-| **Vector Database** | Pinecone (Serverless) | Free Tier ✅ |
-| **Embeddings** | HuggingFace `all-MiniLM-L6-v2` | Local ✅ |
-| **Backend** | FastAPI (Async) | Pydantic V2 ✅ |
-| **Ingesta** | Docling | Extraccion de PDF ✅ |
-| **Frontend** | React + Vite + TypeScript | TailwindCSS ✅ |
+| **LLM Inference** | Groq API (Llama 3.3 70B) | Alta velocidad, bajo costo |
+| **Orquestacion** | LangGraph | State Machines con subagentes |
+| **Vector Database** | Qdrant (In-Memory) | Zero maintenance, 100% free |
+| **Embeddings** | HuggingFace `all-MiniLM-L6-v2` | Local |
+| **Backend** | FastAPI (Async) | Pydantic V2 |
+| **Ingesta** | Docling | Extraccion de PDF |
+| **Frontend** | React + Vite + TypeScript | TailwindCSS |
 
-## 3. Estructura de Directorios (Monorepo) ✅
+## 3. Estructura de Directorios (Monorepo)
 ```
 /rfp-orchestrator
 ├── /backend
@@ -39,7 +39,7 @@ Sistema de automatizacion de respuestas a licitaciones (RFP) basado en arquitect
 └── README.md
 ```
 
-## 4. Flujo del Agente Multi-Agent (LangGraph) ✅
+## 4. Flujo del Agente Multi-Agent (LangGraph)
 
 ```
 State: {
@@ -82,24 +82,24 @@ State: {
 ```
 
 ### Descripcion de Nodos:
-- **Retrieve**: Busca k=10 chunks del vector store ✅
-- **Grade_Documents**: LLM evalua relevancia de cada chunk para la pregunta ✅
-- **Router**: Clasifica la pregunta en un dominio especializado ✅
-- **Specialist**: Genera respuesta usando el subagente del dominio apropiado ✅
-- **Auditor_Check**: Verifica calidad considerando el dominio especializado ✅
-- **Refine_Answer**: Mejora respuestas insuficientes con contexto del dominio (max 2 intentos) ✅
+- **Retrieve**: Busca k=10 chunks del vector store
+- **Grade_Documents**: LLM evalua relevancia de cada chunk para la pregunta
+- **Router**: Clasifica la pregunta en un dominio especializado
+- **Specialist**: Genera respuesta usando el subagente del dominio apropiado
+- **Auditor_Check**: Verifica calidad considerando el dominio especializado
+- **Refine_Answer**: Mejora respuestas insuficientes con contexto del dominio (max 2 intentos)
 
-### Dominios de Subagentes Especializados ✅
-| Dominio | Especialidad | Estado |
-|---------|-------------|--------|
-| **legal** | Normativa, jurisdiccion, propiedad intelectual, confidencialidad, sanciones | ✅ |
-| **technical** | Arquitectura, stack tecnologico, integraciones, APIs, SLAs tecnicos | ✅ |
-| **financial** | Presupuesto, pagos, garantias, financiamiento, ajustes de precios | ✅ |
-| **timeline** | Cronograma, fechas, plazos, fases, hitos temporales | ✅ |
-| **requirements** | Requisitos de participacion, experiencia, personal clave, capacidades | ✅ |
-| **general** | Preguntas que abarcan multiples dominios o no encajan en categorias especificas | ✅ |
+### Dominios de Subagentes Especializados
+| Dominio | Especialidad |
+|---------|-------------|
+| **legal** | Normativa, jurisdiccion, propiedad intelectual, confidencialidad, sanciones |
+| **technical** | Arquitectura, stack tecnologico, integraciones, APIs, SLAs tecnicos |
+| **financial** | Presupuesto, pagos, garantias, financiamiento, ajustes de precios |
+| **timeline** | Cronograma, fechas, plazos, fases, hitos temporales |
+| **requirements** | Requisitos de participacion, experiencia, personal clave, capacidades |
+| **general** | Preguntas que abarcan multiples dominios o no encajan en categorias especificas |
 
-## 5. API Response con Metadata de Agentes ✅
+## 5. API Response con Metadata de Agentes
 
 Cada respuesta del endpoint `/api/chat` incluye metadata de trazabilidad:
 
@@ -118,7 +118,7 @@ Cada respuesta del endpoint `/api/chat` incluye metadata de trazabilidad:
 }
 ```
 
-## 6. Sistema de Logging y Trazabilidad ✅
+## 6. Sistema de Logging y Trazabilidad
 
 El pipeline genera logs detallados de cada paso:
 
@@ -139,7 +139,7 @@ El pipeline genera logs detallados de cada paso:
    ◆ Revisions: 0 | Audit: pass
 ```
 
-## 7. Arquitectura de Despliegue ✅
+## 7. Arquitectura de Despliegue
 
 ```
                     [Cliente Browser]
@@ -154,8 +154,8 @@ El pipeline genera logs detallados de cada paso:
                           │
           ┌───────────────┼───────────────┐
           ▼               ▼               ▼
-     [Pinecone]      [Groq API]     [HuggingFace]
-    (Vector DB)    (LLM Inference)  (Embeddings)
+     [Qdrant]        [Groq API]     [HuggingFace]
+   (In-Memory)    (LLM Inference)  (Embeddings)
 ```
 
 **Nota:** Todos los subagentes corren en el mismo proceso/puerto. No requieren puertos separados ya que son nodos del grafo LangGraph con prompts especializados, no microservicios independientes.

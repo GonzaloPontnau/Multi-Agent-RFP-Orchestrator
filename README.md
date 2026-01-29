@@ -63,7 +63,7 @@ graph TD
 | **LLM Inference** | Groq API | Fast inference using Llama 3 models. |
 | **Backend** | FastAPI | High-performance async Python framework. |
 | **Frontend** | React + TypeScript | Modern, type-safe UI with TailwindCSS. |
-| **Vector DB** | Pinecone | Serverless vector storage for embeddings. |
+| **Vector DB** | Qdrant (In-Memory) | Zero-maintenance vector storage for ephemeral deployments. |
 | **Ingestion** | Docling | PDF extraction and document processing. |
 
 ## Project Structure
