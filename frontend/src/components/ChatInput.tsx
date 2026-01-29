@@ -32,8 +32,8 @@ export function ChatInput({ onSend, loading }: ChatInputProps) {
           placeholder="Escribe tu pregunta..."
           disabled={loading}
           rows={1}
-          className="w-full px-6 py-4 pr-16 bg-transparent resize-none focus:outline-none placeholder-slate-500 disabled:opacity-50 text-sm"
-          style={{ minHeight: "60px", maxHeight: "200px" }}
+          className="w-full px-6 pr-16 bg-transparent resize-none focus:outline-none placeholder-slate-500 disabled:opacity-50 text-sm flex items-center"
+          style={{ minHeight: "60px", maxHeight: "200px", paddingTop: "20px", paddingBottom: "20px" }}
         />
         <button
           type="submit"

@@ -98,6 +98,9 @@ async def chat(request: QueryRequest):
     """Procesa una pregunta usando el grafo de agentes con subagentes especializados."""
     
     try:
+        # Log inicio del pipeline
+        agent_logger.pipeline_start(request.question)
+        
         result = await rfp_app.ainvoke({
             "question": request.question,
             "context": [],

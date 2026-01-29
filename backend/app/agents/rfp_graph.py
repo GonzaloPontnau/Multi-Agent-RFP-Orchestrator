@@ -179,7 +179,7 @@ async def specialist_node(state: AgentState) -> dict:
         return {"answer": answer}
     except Exception as e:
         logger.error(f"specialist_{domain}", e)
-        return {"answer": "Ocurrió un error procesando tu pregunta. Intenta nuevamente."}
+        return {"answer": f"Error en el agente ({type(e).__name__}): {str(e)[:200]}"}
 
 
 async def auditor_node(state: AgentState) -> dict:

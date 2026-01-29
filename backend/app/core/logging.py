@@ -1,12 +1,17 @@
 import logging
 import sys
 from functools import lru_cache
+from logging.handlers import TimedRotatingFileHandler
+from pathlib import Path
 from typing import Literal
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 _LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# Directorio de logs (backend/logs/)
+_LOG_DIR = Path(__file__).parent.parent.parent / "logs"
 
 # Símbolos para visualizar el flujo
 FLOW_SYMBOLS = {
@@ -19,14 +24,34 @@ FLOW_SYMBOLS = {
 
 
 def _configure_root_logger(level: LogLevel) -> None:
-    """Configura el logger raíz una sola vez."""
+    """Configura el logger raíz con handlers de consola y archivo."""
     root = logging.getLogger()
     if root.handlers:
         return
 
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter(_LOG_FORMAT, _DATE_FORMAT))
-    root.addHandler(handler)
+    formatter = logging.Formatter(_LOG_FORMAT, _DATE_FORMAT)
+
+    # Handler de consola (stdout)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    root.addHandler(console_handler)
+
+    # Handler de archivo con rotación diaria (mantiene 7 días)
+    try:
+        _LOG_DIR.mkdir(exist_ok=True)
+        file_handler = TimedRotatingFileHandler(
+            _LOG_DIR / "rfp_orchestrator.log",
+            when="midnight",
+            interval=1,
+            backupCount=7,
+            encoding="utf-8",
+        )
+        file_handler.setFormatter(formatter)
+        root.addHandler(file_handler)
+    except Exception:
+        # Si falla la creación del archivo, solo usar consola
+        pass
+
     root.setLevel(level)
 
 

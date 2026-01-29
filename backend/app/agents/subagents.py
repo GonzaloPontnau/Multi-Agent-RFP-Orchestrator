@@ -187,4 +187,4 @@ async def specialist_generate(
         return answer
     except Exception as e:
         logger.error(f"specialist_{domain}", e)
-        return "Ocurrió un error procesando tu pregunta. Intenta nuevamente."
+        return f"Error en el agente especializado ({type(e).__name__}): {str(e)[:200]}. Revisa los logs para más detalles."
