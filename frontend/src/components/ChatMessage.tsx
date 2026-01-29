@@ -26,9 +26,9 @@ const RISK_COLORS: Record<RiskLevel, { bg: string; text: string; label: string }
 };
 
 const COMPLIANCE_LABELS: Record<string, { color: string; label: string }> = {
-  approved: { color: "text-green-400", label: "Aprobado" },
-  pending: { color: "text-yellow-400", label: "Pendiente" },
-  rejected: { color: "text-red-400", label: "Rechazado" },
+  approved: { color: "text-green-400", label: "Verificado" },
+  pending: { color: "text-yellow-400", label: "Requiere Revisión" },
+  rejected: { color: "text-red-400", label: "Con Errores" },
 };
 
 export function ChatMessage({ role, content, sources, agentMetadata }: ChatMessageProps) {
@@ -47,10 +47,10 @@ export function ChatMessage({ role, content, sources, agentMetadata }: ChatMessa
       ) : (
         <div className="relative flex-shrink-0">
           <div className="absolute inset-0 bg-orange-500/20 rounded-full blur-md" />
-          <img 
-            src="/logo.png" 
-            alt="Agent" 
-            className="relative w-9 h-9 rounded-full object-cover ring-2 ring-orange-500/30 shadow-lg" 
+          <img
+            src="/logo.png"
+            alt="Agent"
+            className="relative w-9 h-9 rounded-full object-cover ring-2 ring-orange-500/30 shadow-lg"
           />
         </div>
       )}
@@ -97,11 +97,10 @@ export function ChatMessage({ role, content, sources, agentMetadata }: ChatMessa
         )}
 
         <div
-          className={`inline-block text-left shadow-lg ${
-            isUser
+          className={`inline-block text-left shadow-lg ${isUser
               ? "bg-gradient-to-br from-slate-700 to-slate-700/90 text-slate-100 rounded-3xl rounded-tr-lg px-5 py-3.5"
               : "bg-gradient-to-br from-slate-800/80 to-slate-800/60 border border-slate-700/30 text-slate-200 rounded-3xl rounded-tl-lg px-5 py-4"
-          }`}
+            }`}
         >
           {isUser ? (
             <p className="text-sm leading-relaxed">{content}</p>
@@ -124,7 +123,7 @@ export function ChatMessage({ role, content, sources, agentMetadata }: ChatMessa
                 <span className="text-slate-500">({agentMetadata.quant_analysis.chart_type})</span>
               )}
             </div>
-            <img 
+            <img
               src={`data:image/png;base64,${agentMetadata.quant_analysis.chart_base64}`}
               alt="Grafico de analisis"
               className="rounded-lg max-w-full h-auto"

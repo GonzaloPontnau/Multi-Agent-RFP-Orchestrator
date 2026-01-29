@@ -119,6 +119,8 @@ async def chat(request: QueryRequest):
             "compliance_status": None,
             "risk_issues": [],
             "gate_passed": None,
+            # Flag para no-documentos
+            "no_documents": None,
         })
 
         # Log resumen del pipeline completo

@@ -112,7 +112,7 @@ FORMATO DE RESPUESTA (JSON):
 {{
     "risk_level": "low|medium|high|critical",
     "compliance_status": "approved|pending|rejected",
-    "issues": ["lista de issues detectados"],
+    "issues": ["IMPORTANTE: Lista SOLO observaciones NUEVAS que NO esten ya mencionadas en la respuesta. Cada issue debe aportar informacion adicional o advertencias que complementen la respuesta, no repetir lo que ya se dijo. Si no hay issues nuevos, devuelve lista vacia."],
     "gate_passed": true/false,
     "reasoning": "breve explicacion de la decision"
 }}
@@ -242,6 +242,37 @@ async def calculate_risk_score(
         return "medium", "pending", [f"Error en evaluacion: {str(e)}"], False
 
 
+UNIFIED_RISK_PROMPT = """Eres un auditor de compliance y riesgos para licitaciones. Analiza la respuesta generada contra el contexto del documento.
+
+RESPUESTA A AUDITAR:
+{answer}
+
+CONTEXTO DEL DOCUMENTO:
+{context}
+
+PREGUNTA ORIGINAL:
+{question}
+
+TAREA:
+1. Verifica si las afirmaciones de la respuesta están respaldadas por el contexto
+2. Identifica inconsistencias o información no verificable
+3. Determina el nivel de riesgo y estado de compliance
+
+CRITERIOS DE RIESGO:
+- low: Toda la información es verificable y consistente
+- medium: Hay pequeñas inconsistencias o datos aproximados
+- high: Hay información importante no verificable o faltan datos
+- critical: Hay afirmaciones falsas o errores graves
+
+RESPONDE SOLO EN JSON:
+{{
+    "risk_level": "low|medium|high|critical",
+    "compliance_status": "approved|pending|rejected",
+    "issues": ["Lista SOLO observaciones NUEVAS que aporten info adicional, NO repetir lo que ya dice la respuesta. Si no hay issues nuevos, devuelve lista vacía []"],
+    "gate_passed": true/false
+}}"""
+
+
 async def risk_audit(
     answer: str,
     context: list[Document],
@@ -249,13 +280,13 @@ async def risk_audit(
     project_state: dict | None = None
 ) -> tuple[RiskLevel, ComplianceStatus, list[str], bool]:
     """
-    Pipeline completo de Risk Sentinel.
+    Pipeline simplificado de Risk Sentinel (1 sola llamada LLM).
     
     Args:
         answer: Respuesta generada a auditar
         context: Documentos de contexto
         question: Pregunta original
-        project_state: Estado del proyecto para evaluacion de gates (opcional)
+        project_state: Estado del proyecto (opcional, no usado actualmente)
     
     Returns:
         tuple: (risk_level, compliance_status, issues, gate_passed)
@@ -263,24 +294,46 @@ async def risk_audit(
     logger.node_enter("risk_audit", {"question": question[:50]})
     
     try:
-        # Si la respuesta es muy corta o es un error, aprobar con bajo riesgo
+        # Respuestas cortas o errores: aprobar automáticamente
         if len(answer) < 50 or "error" in answer.lower():
             logger.node_exit("risk_audit", "Short/error answer - auto-approved")
             return "low", "approved", [], True
         
-        # 1. Extraer reglas del documento
-        rules = await extract_rules(context)
+        # Respuesta de "no hay documentos": aprobar sin auditar
+        if "no hay documentos" in answer.lower():
+            logger.node_exit("risk_audit", "No documents message - auto-approved")
+            return "low", "approved", [], True
         
-        # 2. Fact-check de la respuesta
-        fact_check_results = await fact_check(answer, context, question)
+        context_text = "\n\n---\n\n".join(doc.page_content for doc in context[:5])  # Limitar a 5 docs
         
-        # 3. Calcular semaforo de riesgo
-        risk_level, compliance, issues, gate_passed = await calculate_risk_score(
-            fact_check_results,
-            rules
+        llm = get_llm(temperature=0.0)
+        prompt = UNIFIED_RISK_PROMPT.format(
+            answer=answer[:3000],  # Limitar longitud
+            context=context_text[:4000],
+            question=question
         )
         
-        # Log resumen
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        result = _parse_json_response(response.content)
+        
+        if not result:
+            logger.node_exit("risk_audit", "Failed to parse JSON - defaulting to medium/approved")
+            return "medium", "approved", [], True
+        
+        risk_level: RiskLevel = result.get("risk_level", "medium")
+        compliance: ComplianceStatus = result.get("compliance_status", "approved")
+        issues = result.get("issues", [])
+        gate_passed = result.get("gate_passed", True)
+        
+        # Validar valores
+        if risk_level not in ["low", "medium", "high", "critical"]:
+            risk_level = "medium"
+        if compliance not in ["approved", "pending", "rejected"]:
+            compliance = "approved"
+        
+        # Filtrar issues vacíos o placeholder
+        issues = [i for i in issues if i and not i.startswith("Lista SOLO")]
+        
         logger.node_exit(
             "risk_audit",
             f"risk={risk_level}, compliance={compliance}, issues={len(issues)}, gate={gate_passed}"
@@ -290,5 +343,5 @@ async def risk_audit(
         
     except Exception as e:
         logger.error("risk_audit", e)
-        # En caso de error, aprobar con riesgo medio para no bloquear
-        return "medium", "approved", [f"Error en auditoria: {str(e)}"], True
+        return "medium", "approved", [f"Error en auditoría: {str(e)}"], True
+

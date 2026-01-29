@@ -83,11 +83,24 @@ class AgentState(TypedDict):
     compliance_status: str | None
     risk_issues: list[str]
     gate_passed: bool | None
+    # Flag para indicar que no hay documentos cargados
+    no_documents: bool | None
 
 
 def _get_docs(state: AgentState) -> list[Document]:
     """Obtiene documentos del estado priorizando filtered_context."""
     return state.get("filtered_context") or state.get("context", [])
+
+
+NO_DOCUMENTS_MESSAGE = """No hay documentos cargados en el sistema.
+
+Para poder responder tu pregunta, por favor:
+
+1. **Sube uno o más documentos PDF** usando el área de carga en la interfaz
+2. Espera a que se procesen los documentos
+3. Vuelve a hacer tu pregunta
+
+Una vez que hayas cargado los documentos de licitación, podré analizar y responder preguntas específicas sobre su contenido."""
 
 
 async def retrieve_node(state: AgentState) -> dict:
@@ -100,6 +113,21 @@ async def retrieve_node(state: AgentState) -> dict:
     try:
         rag = get_rag_service()
         documents = await rag.similarity_search(state["question"], k=10)
+        
+        # Si no hay documentos, devolver mensaje predeterminado
+        if not documents:
+            logger.node_exit("retrieve", "NO DOCUMENTS - Vector store is empty")
+            logger.routing_decision("retrieve", "END", "No documents found - returning predefined message")
+            return {
+                "context": [],
+                "filtered_context": [],
+                "revision_count": 0,
+                "domain": "none",
+                "answer": NO_DOCUMENTS_MESSAGE,
+                "audit_result": "pass",  # Skip auditing
+                "no_documents": True,  # Flag to skip remaining nodes
+            }
+        
         logger.node_exit("retrieve", f"{len(documents)} docs retrieved from Pinecone")
         logger.routing_decision("retrieve", "grade_documents", f"Passing {len(documents)} docs for relevance filtering")
         return {"context": documents, "revision_count": 0}
@@ -372,9 +400,23 @@ workflow.add_node("risk_sentinel", risk_sentinel_node)  # Risk Sentinel: Auditor
 workflow.add_node("auditor", auditor_node)  # Auditor simple (fallback)
 workflow.add_node("refine", refine_node)
 
+def route_after_retrieve(state: AgentState) -> Literal["grade_documents", "end"]:
+    """Si no hay documentos, ir directo a END. Si hay, continuar con grade_documents."""
+    if state.get("no_documents"):
+        return "end"
+    return "grade_documents"
+
+
 # Flujo principal
 workflow.add_edge(START, "retrieve")
-workflow.add_edge("retrieve", "grade_documents")
+workflow.add_conditional_edges(
+    "retrieve",
+    route_after_retrieve,
+    {
+        "grade_documents": "grade_documents",
+        "end": END,
+    }
+)
 workflow.add_edge("grade_documents", "router")
 
 # Router dirige condicionalmente a specialist o quant

@@ -29,6 +29,20 @@ def _configure_root_logger(level: LogLevel) -> None:
     if root.handlers:
         return
 
+    # Silenciar loggers ruidosos de terceros
+    noisy_loggers = [
+        "watchfiles",
+        "watchfiles.main",
+        "httpx",
+        "httpcore",
+        "httpcore.http11",
+        "httpcore.connection",
+        "hpack",
+        "urllib3",
+    ]
+    for logger_name in noisy_loggers:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
+
     formatter = logging.Formatter(_LOG_FORMAT, _DATE_FORMAT)
 
     # Handler de consola (stdout)
@@ -106,14 +120,14 @@ class AgentLogger:
 
     def node_enter(self, node: str, state: dict | None = None) -> None:
         question = state.get("question", "N/A")[:50] if state else "N/A"
-        self._logger.info(f"{FLOW_SYMBOLS['node']} [{node.upper()}] {FLOW_SYMBOLS['arrow']} Entering | Q: {question}...")
+        self._logger.debug(f"{FLOW_SYMBOLS['node']} [{node.upper()}] {FLOW_SYMBOLS['arrow']} Entering | Q: {question}...")
 
     def node_exit(self, node: str, result: str | None = None) -> None:
-        self._logger.info(f"{FLOW_SYMBOLS['node']} [{node.upper()}] {FLOW_SYMBOLS['arrow']} Exiting | {result or 'OK'}")
+        self._logger.debug(f"{FLOW_SYMBOLS['node']} [{node.upper()}] {FLOW_SYMBOLS['arrow']} Exiting | {result or 'OK'}")
 
     def routing_decision(self, from_node: str, to_node: str, reason: str) -> None:
         """Log decisión de enrutamiento entre nodos."""
-        self._logger.info(f"{FLOW_SYMBOLS['route']} ROUTING: {from_node} → {to_node} | Reason: {reason}")
+        self._logger.debug(f"{FLOW_SYMBOLS['route']} ROUTING: {from_node} → {to_node} | Reason: {reason}")
 
     def specialist_selected(self, domain: str, question: str) -> None:
         """Log selección de especialista."""
