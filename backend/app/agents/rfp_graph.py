@@ -15,6 +15,19 @@ logger = AgentLogger("rfp_graph")
 GRADER_PROMPT = """Eres un evaluador de relevancia documental. Tu tarea es determinar si un documento
 contiene información relevante para responder la pregunta del usuario.
 
+REGLAS CRÍTICAS DE RELEVANCIA:
+1. SIEMPRE marca como "relevant" documentos que contengan:
+   - TABLAS (cronogramas, presupuestos, requisitos tabulados)
+   - FECHAS específicas (DD/MM/AAAA, plazos, cronogramas)
+   - MONTOS FINANCIEROS (USD, ARS, porcentajes de garantía)
+   - PORCENTAJES (% de participación, SLAs, penalidades)
+   - LISTAS NUMERADAS de requisitos o especificaciones
+
+2. Estos documentos son relevantes INCLUSO si tienen poco texto narrativo.
+   Un documento con solo una tabla de fechas ES RELEVANTE para preguntas de cronograma.
+
+3. Evalúa el CONTENIDO ESTRUCTURADO (tablas, listas) con el mismo peso que el texto.
+
 Responde SOLO con "relevant" o "not_relevant" (sin comillas, sin explicación adicional).
 
 Documento:
@@ -137,14 +150,37 @@ async def retrieve_node(state: AgentState) -> dict:
         return {"context": [], "revision_count": 0}
 
 
+# Domains that typically require data-heavy documents (tables, dates, amounts)
+DATA_HEAVY_DOMAINS = {"financial", "timeline", "quantitative"}
+MIN_DOCS_SAFETY_NET = 3  # Minimum docs to keep for data-heavy domains
+SAFETY_NET_DOCS_COUNT = 5  # Number of docs to use when safety net triggers
+
+
+def _detect_data_heavy_question(question: str) -> bool:
+    """Heuristic to detect if question likely needs data-heavy documents."""
+    data_heavy_keywords = [
+        "fecha", "cronograma", "plazo", "calendario", "hito",
+        "presupuesto", "monto", "garantía", "pago", "financier",
+        "tabla", "porcentaje", "%", "usd", "ars", "cantidad",
+        "cuánto", "cuándo", "timeline", "schedule"
+    ]
+    question_lower = question.lower()
+    return any(kw in question_lower for kw in data_heavy_keywords)
+
+
 async def grade_documents_node(state: AgentState) -> dict:
-    """Filtra documentos evaluando su relevancia para la pregunta."""
+    """Filtra documentos evaluando su relevancia para la pregunta.
+    
+    Includes a safety net for data-heavy domains (financial, timeline, quantitative)
+    to prevent over-aggressive filtering of documents containing tables/dates.
+    """
     logger.node_enter("grade_documents", state)
     
     try:
         llm = get_llm(temperature=0.0)
         relevant_docs = []
         total_docs = len(state["context"])
+        original_docs = state["context"]  # Keep reference for safety net
         
         for i, doc in enumerate(state["context"], 1):
             prompt = GRADER_PROMPT.format(
@@ -159,10 +195,22 @@ async def grade_documents_node(state: AgentState) -> dict:
                 relevant_docs.append(doc)
             logger.debug("grade_documents", f"Doc {i}/{total_docs} (score: {doc.metadata.get('score', 'N/A')}) -> {grade}")
         
-        # Si no hay docs relevantes, usar todos los originales como fallback
-        if not relevant_docs:
+        # === SAFETY NET FOR DATA-HEAVY DOMAINS ===
+        # If too few docs remain after filtering AND question appears data-heavy,
+        # bypass the filter to ensure specialist gets raw data (tables, dates, amounts)
+        is_data_heavy = _detect_data_heavy_question(state["question"])
+        
+        if len(relevant_docs) < MIN_DOCS_SAFETY_NET and is_data_heavy:
+            logger.debug(
+                "grade_documents", 
+                f"SAFETY NET: Only {len(relevant_docs)} docs after filter, but question is data-heavy. "
+                f"Using top {SAFETY_NET_DOCS_COUNT} original docs instead."
+            )
+            relevant_docs = original_docs[:SAFETY_NET_DOCS_COUNT]
+        elif not relevant_docs:
+            # Original fallback: no relevant docs found at all
             logger.debug("grade_documents", "No relevant docs found, using top 5 as fallback")
-            relevant_docs = state["context"][:5]
+            relevant_docs = original_docs[:5]
         
         logger.node_exit("grade_documents", f"{len(relevant_docs)}/{total_docs} docs marked as relevant")
         logger.routing_decision("grade_documents", "router", f"Sending {len(relevant_docs)} relevant docs to router for domain classification")

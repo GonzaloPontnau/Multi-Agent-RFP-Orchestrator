@@ -161,6 +161,43 @@ class RAGService:
             logger.error(f"Error obteniendo stats: {e}")
             return {"error": str(e)}
 
+    @_ensure_index
+    async def get_indexed_documents(self) -> list[dict]:
+        """Obtiene lista de documentos indexados con metadata básica.
+        
+        Returns:
+            Lista de dicts con 'name' (source) y 'chunks' (count estimado).
+        """
+        try:
+            # Fetch a sample of vectors to extract unique sources
+            # Pinecone doesn't have a direct "list all metadata" so we query with a zero vector
+            # to get up to 1000 results and extract unique sources
+            zero_vector = [0.0] * EMBEDDING_DIMENSION
+            results = await asyncio.to_thread(
+                self._index.query,
+                vector=zero_vector,
+                top_k=1000,  # Max to get most documents
+                include_metadata=True,
+            )
+            
+            # Aggregate by source
+            source_counts: dict[str, int] = {}
+            for match in results.matches:
+                source = match.metadata.get("source", "unknown")
+                source_counts[source] = source_counts.get(source, 0) + 1
+            
+            # Convert to list format expected by frontend
+            documents = [
+                {"name": source, "chunks": count}
+                for source, count in source_counts.items()
+            ]
+            
+            logger.debug(f"Found {len(documents)} indexed documents")
+            return documents
+        except Exception as e:
+            logger.error(f"Error obteniendo documentos indexados: {e}")
+            return []
+
 
 @lru_cache
 def get_rag_service() -> RAGService:

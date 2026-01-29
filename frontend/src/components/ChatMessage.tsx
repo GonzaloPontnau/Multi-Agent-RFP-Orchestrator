@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { AgentMetadata, RiskLevel } from "../types";
 
 interface ChatMessageProps {
@@ -98,15 +99,15 @@ export function ChatMessage({ role, content, sources, agentMetadata }: ChatMessa
 
         <div
           className={`inline-block text-left shadow-lg ${isUser
-              ? "bg-gradient-to-br from-slate-700 to-slate-700/90 text-slate-100 rounded-3xl rounded-tr-lg px-5 py-3.5"
-              : "bg-gradient-to-br from-slate-800/80 to-slate-800/60 border border-slate-700/30 text-slate-200 rounded-3xl rounded-tl-lg px-5 py-4"
+            ? "bg-gradient-to-br from-slate-700 to-slate-700/90 text-slate-100 rounded-3xl rounded-tr-lg px-5 py-3.5"
+            : "bg-gradient-to-br from-slate-800/80 to-slate-800/60 border border-slate-700/30 text-slate-200 rounded-3xl rounded-tl-lg px-5 py-4"
             }`}
         >
           {isUser ? (
             <p className="text-sm leading-relaxed">{content}</p>
           ) : (
-            <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-p:text-slate-300 prose-headings:text-slate-200 prose-strong:text-slate-200 prose-li:text-slate-300 prose-ul:my-2 prose-ol:my-2">
-              <ReactMarkdown>{content}</ReactMarkdown>
+            <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-p:text-slate-300 prose-headings:text-slate-200 prose-strong:text-slate-200 prose-li:text-slate-300 prose-ul:my-2 prose-ol:my-2 prose-table:border-collapse prose-table:w-full prose-th:border prose-th:border-slate-600 prose-th:bg-slate-700/50 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:text-slate-200 prose-td:border prose-td:border-slate-700 prose-td:px-3 prose-td:py-2 prose-td:text-slate-300">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
             </div>
           )}
         </div>

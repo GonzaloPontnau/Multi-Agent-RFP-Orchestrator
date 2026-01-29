@@ -6,6 +6,17 @@ import { Sidebar } from "./components/Sidebar";
 import { useRFP } from "./hooks/useRFP";
 import type { Document, Message } from "./types";
 
+// Message shown when user tries to ask without uploading documents
+const NO_DOCUMENTS_MESSAGE = `**No hay documentos cargados**
+
+Para poder responder tu pregunta, por favor:
+
+1. **Sube uno o más documentos PDF** usando el área de carga en el panel izquierdo
+2. Espera a que se procesen los documentos
+3. Vuelve a hacer tu pregunta
+
+Una vez que hayas cargado los documentos de licitación, podré analizar y responder preguntas específicas sobre su contenido.`;
+
 export default function App() {
   const { loading, error, uploadDocument, askQuestion, clearError } = useRFP();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -43,6 +54,17 @@ export default function App() {
     };
     setMessages((prev) => [...prev, userMessage]);
 
+    // If no documents uploaded in this session, show helpful message
+    if (documents.length === 0) {
+      const noDocsMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: NO_DOCUMENTS_MESSAGE,
+      };
+      setMessages((prev) => [...prev, noDocsMessage]);
+      return;
+    }
+
     const response = await askQuestion(question);
     if (response) {
       const assistantMessage: Message = {
@@ -74,8 +96,8 @@ export default function App() {
               </div>
               <span className="text-sm text-red-300">{error}</span>
             </div>
-            <button 
-              onClick={clearError} 
+            <button
+              onClick={clearError}
               className="p-2 hover:bg-red-900/30 rounded-xl transition-colors"
             >
               <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -105,10 +127,10 @@ export default function App() {
                   <div className="flex gap-4">
                     <div className="relative flex-shrink-0">
                       <div className="absolute inset-0 bg-orange-500/20 rounded-full blur-md animate-pulse" />
-                      <img 
-                        src="/logo.png" 
-                        alt="Agent" 
-                        className="relative w-9 h-9 rounded-full object-cover ring-2 ring-orange-500/30" 
+                      <img
+                        src="/logo.png"
+                        alt="Agent"
+                        className="relative w-9 h-9 rounded-full object-cover ring-2 ring-orange-500/30"
                       />
                     </div>
                     <div className="bg-gradient-to-br from-slate-800/80 to-slate-800/60 border border-slate-700/30 rounded-3xl rounded-tl-lg px-5 py-4 shadow-lg">

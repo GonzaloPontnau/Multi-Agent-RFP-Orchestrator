@@ -1,13 +1,19 @@
 import { useCallback, useState } from "react";
-import type { ChatResponse, IngestResponse } from "../types";
+import type { ChatResponse, Document, IngestResponse } from "../types";
 
 const API_URL = "/api";
+
+interface DocumentsResponse {
+  status: string;
+  documents: { name: string; chunks: number }[];
+}
 
 interface UseRFPReturn {
   loading: boolean;
   error: string | null;
   uploadDocument: (file: File) => Promise<IngestResponse | null>;
   askQuestion: (question: string) => Promise<ChatResponse | null>;
+  fetchDocuments: () => Promise<Document[]>;
   clearError: () => void;
 }
 
@@ -52,7 +58,22 @@ export function useRFP(): UseRFPReturn {
     }, "Error al procesar pregunta");
   }, [apiCall]);
 
+  const fetchDocuments = useCallback(async (): Promise<Document[]> => {
+    try {
+      const response = await fetch(`${API_URL}/documents`);
+      if (!response.ok) return [];
+      const data: DocumentsResponse = await response.json();
+      return data.documents.map((doc) => ({
+        name: doc.name,
+        chunks: doc.chunks,
+        uploadedAt: new Date(), // Approximate, since we don't store upload time
+      }));
+    } catch {
+      return [];
+    }
+  }, []);
+
   const clearError = useCallback(() => setError(null), []);
 
-  return { loading, error, uploadDocument, askQuestion, clearError };
+  return { loading, error, uploadDocument, askQuestion, fetchDocuments, clearError };
 }

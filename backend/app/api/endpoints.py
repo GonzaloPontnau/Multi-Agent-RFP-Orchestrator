@@ -93,6 +93,21 @@ async def get_index_stats():
         )
 
 
+@router.get("/documents")
+async def get_documents():
+    """Obtiene lista de documentos indexados para sincronizar con el frontend."""
+    try:
+        rag = get_rag_service()
+        documents = await rag.get_indexed_documents()
+        return {"status": "success", "documents": documents}
+    except Exception as e:
+        logger.error(f"Error obteniendo documentos: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+
+
 @router.post("/chat", response_model=QueryResponse)
 async def chat(request: QueryRequest):
     """Procesa una pregunta usando el grafo de agentes con subagentes especializados."""
