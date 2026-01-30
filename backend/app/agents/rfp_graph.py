@@ -142,7 +142,7 @@ async def retrieve_node(state: AgentState) -> dict:
                 "no_documents": True,  # Flag to skip remaining nodes
             }
         
-        logger.node_exit("retrieve", f"{len(documents)} docs retrieved from Pinecone")
+        logger.node_exit("retrieve", f"{len(documents)} docs retrieved from vector store")
         logger.routing_decision("retrieve", "grade_documents", f"Passing {len(documents)} docs for relevance filtering")
         return {"context": documents, "revision_count": 0}
     except Exception as e:

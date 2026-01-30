@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,16 +19,11 @@ class Settings(BaseSettings):
     app_env: Literal["development", "staging", "production"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
-    # Pinecone
-    pinecone_api_key: str = Field(..., min_length=1)
-    pinecone_env: str = Field(default="us-east-1")
-
     # Groq
     groq_api_key: str = Field(..., min_length=1)
     groq_model: str = Field(default="llama-3.3-70b-versatile")
 
-    # RAG Settings
-    pinecone_index_name: str = Field(default="rfp-index")
+    # RAG Settings (Qdrant in-memory - no external credentials needed)
     chunk_size: int = Field(default=1000, ge=100, le=4000)
     chunk_overlap: int = Field(default=200, ge=0, le=1000)
 

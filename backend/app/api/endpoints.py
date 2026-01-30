@@ -60,7 +60,7 @@ async def ingest_document(file: UploadFile):
 
 @router.delete("/index")
 async def clear_index():
-    """Elimina todos los vectores del índice de Pinecone."""
+    """Elimina todos los vectores del vector store."""
     try:
         rag = get_rag_service()
         success = await rag.clear_index()
@@ -80,7 +80,7 @@ async def clear_index():
 
 @router.get("/index/stats")
 async def get_index_stats():
-    """Obtiene estadísticas del índice de Pinecone."""
+    """Obtiene estadísticas del vector store."""
     try:
         rag = get_rag_service()
         stats = await rag.get_stats()

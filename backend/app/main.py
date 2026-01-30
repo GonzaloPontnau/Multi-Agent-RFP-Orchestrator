@@ -63,15 +63,15 @@ async def health_check():
     """Health check con verificacion de dependencias."""
     rag = get_rag_service()
     
-    pinecone_ok = await rag.health_check()
+    vector_db_ok = await rag.health_check()
     groq_ok = await check_groq_health()
     
     checks = {
-        "pinecone": "ok" if pinecone_ok else "error",
+        "vector_db": "ok" if vector_db_ok else "error",
         "groq": "ok" if groq_ok else "error",
     }
     
-    all_healthy = pinecone_ok and groq_ok
+    all_healthy = vector_db_ok and groq_ok
     return {
         "status": "ok" if all_healthy else "degraded",
         "env": settings.app_env,

@@ -127,12 +127,12 @@ class VectorStoreConnectionError(RFPBaseException):
     """
     Exception raised when connection to vector store fails.
     
-    This includes Pinecone initialization, index creation,
+    This includes Qdrant initialization, collection creation,
     and query execution errors.
 
     Attributes:
         operation: The operation that failed (e.g., 'connect', 'query', 'upsert').
-        index_name: Name of the Pinecone index involved.
+        collection_name: Name of the vector store collection involved.
     """
 
     def __init__(
@@ -148,7 +148,7 @@ class VectorStoreConnectionError(RFPBaseException):
         Args:
             message: Human-readable description of the error.
             operation: The operation that failed.
-            index_name: Name of the Pinecone index involved.
+            collection_name: Name of the vector store collection involved.
             details: Optional additional context for debugging.
         """
         self.operation = operation
