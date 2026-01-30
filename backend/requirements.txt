@@ -17,7 +17,6 @@ langchain-community>=0.0.20
 langgraph>=0.0.20
 langchain-groq>=0.1.0
 langchain-huggingface>=0.0.1
-sentence-transformers>=2.2.0
 
 # Vector Database (Qdrant in-memory - zero maintenance)
 qdrant-client>=1.9.0

@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     groq_api_key: str = Field(..., min_length=1)
     groq_model: str = Field(default="llama-3.3-70b-versatile")
 
+    # HuggingFace (for API-based embeddings - saves RAM on free tier)
+    huggingface_api_key: str = Field(..., min_length=1)
+
     # RAG Settings (Qdrant in-memory - no external credentials needed)
     chunk_size: int = Field(default=1000, ge=100, le=4000)
     chunk_overlap: int = Field(default=200, ge=0, le=1000)
