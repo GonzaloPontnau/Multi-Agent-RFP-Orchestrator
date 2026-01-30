@@ -9,7 +9,7 @@ Sistema de automatizacion de respuestas a licitaciones (RFP) basado en arquitect
 | **LLM Inference** | Groq API (Llama 3.3 70B) | Alta velocidad, bajo costo |
 | **Orquestacion** | LangGraph | State Machines con subagentes |
 | **Vector Database** | Qdrant (In-Memory) | Zero maintenance, 100% free |
-| **Embeddings** | HuggingFace `all-MiniLM-L6-v2` | Local |
+| **Embeddings** | HuggingFace Inference API | Cloud (API-based, saves RAM) |
 | **Backend** | FastAPI (Async) | Pydantic V2 |
 | **Ingesta** | Docling | Extraccion de PDF |
 | **Frontend** | React + Vite + TypeScript | TailwindCSS |

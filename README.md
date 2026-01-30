@@ -94,6 +94,7 @@ graph TD
 |-----------|------------|-------------|
 | **Orchestration** | LangGraph | State machine management for multi-agent workflows. |
 | **LLM Inference** | Groq API | Fast inference using Llama 3 models. |
+| **Embeddings** | HuggingFace Inference API | Cloud-based embeddings (saves RAM on free tier). |
 | **Backend** | FastAPI | High-performance async Python framework. |
 | **Frontend** | React + TypeScript | Modern, type-safe UI with TailwindCSS. |
 | **Vector DB** | Qdrant (In-Memory) | Zero-maintenance vector storage for ephemeral deployments. |
@@ -134,6 +135,7 @@ This Monorepo is designed for split deployment, with the frontend and backend ho
     *   **Instance Type:** Free (or higher for production)
 4.  **Set Environment Variables:**
     *   `GROQ_API_KEY`: Your Groq API key.
+    *   `HUGGINGFACE_API_KEY`: Your HuggingFace API key (for embeddings).
     *   `ALLOWED_ORIGINS`: Your Vercel frontend URL (e.g., `https://your-app.vercel.app`).
 
 ### Frontend (Vercel)
