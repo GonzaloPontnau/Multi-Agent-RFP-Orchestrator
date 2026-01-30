@@ -36,13 +36,13 @@ export function Sidebar({ documents, onUpload, loading }: SidebarProps) {
             <div className="absolute inset-0 bg-orange-500/20 rounded-full blur-lg" />
             <img 
               src="/logo.png" 
-              alt="RFP Orchestrator" 
+              alt="TenderCortex" 
               className="relative w-11 h-11 rounded-full object-cover ring-2 ring-orange-500/30"
             />
           </div>
           <div>
-            <h1 className="font-semibold text-white">RFP Orchestrator</h1>
-            <p className="text-xs text-slate-500">Multi-Agent System</p>
+            <h1 className="font-semibold text-white">TenderCortex</h1>
+            <p className="text-xs text-slate-500">Multi-Agent Intelligence</p>
           </div>
         </div>
       </div>

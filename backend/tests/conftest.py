@@ -1,7 +1,7 @@
 """
 Pytest configuration and shared fixtures.
 
-This module provides common fixtures for testing the RFP Multi-Agent Orchestrator.
+This module provides common fixtures for testing TenderCortex.
 All fixtures use mocks to avoid real API calls to LLM or vector store services.
 
 Usage:

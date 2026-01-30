@@ -94,7 +94,7 @@ export function PromptSuggestions({ onSelect }: PromptSuggestionsProps) {
             <div className="absolute inset-0 bg-orange-500/20 rounded-full blur-2xl scale-150" />
             <img
               src="/logo.png"
-              alt="RFP Orchestrator"
+              alt="TenderCortex"
               className="relative w-20 h-20 rounded-full ring-2 ring-orange-500/20"
             />
           </div>

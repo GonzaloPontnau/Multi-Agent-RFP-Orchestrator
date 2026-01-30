@@ -1,7 +1,7 @@
-# RFP Multi-Agent Orchestrator - Architecture Blueprint
+# TenderCortex - Architecture Blueprint
 
 ## 1. Vision General
-Sistema de automatizacion de respuestas a licitaciones (RFP) basado en arquitectura multi-agente con **subagentes especializados por dominio**. Utiliza un orquestador de estados (LangGraph) para coordinar la ingesta de documentos, recuperacion de informacion (RAG) y generacion de respuestas con enrutamiento inteligente.
+Sistema de automatizacion de respuestas a licitaciones basado en arquitectura multi-agente con **subagentes especializados por dominio**. Utiliza un orquestador de estados (LangGraph) para coordinar la ingesta de documentos, recuperacion de informacion (RAG) y generacion de respuestas con enrutamiento inteligente.
 
 ## 2. Stack Tecnologico
 | Componente | Tecnologia | Notas |

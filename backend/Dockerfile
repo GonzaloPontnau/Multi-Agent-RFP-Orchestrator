@@ -1,4 +1,4 @@
-# Dockerfile for RFP Multi-Agent Orchestrator Backend
+# Dockerfile for TenderCortex Backend
 # Optimized for Render Free Tier
 
 FROM python:3.10-slim

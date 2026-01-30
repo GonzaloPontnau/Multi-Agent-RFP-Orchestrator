@@ -1,4 +1,4 @@
-# RFP Multi-Agent Orchestrator - Dependencies
+# TenderCortex - Dependencies
 # Python 3.11+
 
 # API Framework

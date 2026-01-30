@@ -1,8 +1,8 @@
 """
-Custom exceptions for the RFP Multi-Agent Orchestrator.
+Custom exceptions for TenderCortex.
 
 This module provides a hierarchy of exceptions for consistent error handling
-across the application. All exceptions inherit from RFPBaseException.
+across the application. All exceptions inherit from CortexBaseException.
 
 Example:
     try:
@@ -14,9 +14,9 @@ Example:
 from typing import Optional
 
 
-class RFPBaseException(Exception):
+class CortexBaseException(Exception):
     """
-    Base exception class for all RFP Orchestrator errors.
+    Base exception class for all TenderCortex errors.
     
     All custom exceptions in the project should inherit from this class
     to enable consistent error handling and logging.
@@ -45,7 +45,7 @@ class RFPBaseException(Exception):
         return self.message
 
 
-class DocumentIngestionError(RFPBaseException):
+class DocumentIngestionError(CortexBaseException):
     """
     Exception raised when document ingestion fails.
     
@@ -85,7 +85,7 @@ class DocumentIngestionError(RFPBaseException):
         super().__init__(enhanced_message, details)
 
 
-class AgentProcessingError(RFPBaseException):
+class AgentProcessingError(CortexBaseException):
     """
     Exception raised when an agent fails to process a request.
     
@@ -123,7 +123,7 @@ class AgentProcessingError(RFPBaseException):
         super().__init__(enhanced_message, details)
 
 
-class VectorStoreConnectionError(RFPBaseException):
+class VectorStoreConnectionError(CortexBaseException):
     """
     Exception raised when connection to vector store fails.
     
@@ -163,7 +163,7 @@ class VectorStoreConnectionError(RFPBaseException):
         super().__init__(enhanced_message, details)
 
 
-class LLMInvocationError(RFPBaseException):
+class LLMInvocationError(CortexBaseException):
     """
     Exception raised when LLM invocation fails.
     
@@ -202,7 +202,7 @@ class LLMInvocationError(RFPBaseException):
         super().__init__(enhanced_message, details)
 
 
-class RouterClassificationError(RFPBaseException):
+class RouterClassificationError(CortexBaseException):
     """
     Exception raised when question routing fails.
     

@@ -20,13 +20,13 @@ def get_allowed_origins() -> list[str]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info(f"Iniciando RFP Orchestrator [{settings.app_env}]")
+    logger.info(f"Iniciando TenderCortex [{settings.app_env}]")
     yield
-    logger.info("Cerrando RFP Orchestrator")
+    logger.info("Cerrando TenderCortex")
 
 
 app = FastAPI(
-    title="RFP Multi-Agent Orchestrator",
+    title="TenderCortex API",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -55,7 +55,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # Routes
-app.include_router(router, prefix="/api", tags=["RFP"])
+app.include_router(router, prefix="/api", tags=["TenderCortex"])
 
 
 @app.get("/health")
