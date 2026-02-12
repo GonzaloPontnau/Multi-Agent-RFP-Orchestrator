@@ -241,8 +241,15 @@ async def calculate_risk_score(
         logger.error("risk_scoring", e)
         return "medium", "pending", [f"Error en evaluacion: {str(e)}"], False
 
+# [Skill Integration] - Risk Score Calculator
+try:
+    from skills.risk_score_calculator.impl import RiskScoreCalculator, RiskFactorInput, RiskCategory, Severity as SkillSeverity, Recommendation
+    RISK_CALCULATOR_AVAILABLE = True
+except ImportError:
+    RISK_CALCULATOR_AVAILABLE = False
 
-UNIFIED_RISK_PROMPT = """Eres un auditor de compliance y riesgos para licitaciones. Analiza la respuesta generada contra el contexto del documento.
+
+UNIFIED_RISK_PROMPT_ENHANCED = """Eres un auditor de compliance y riesgos para licitaciones. Analiza la respuesta generada contra el contexto del documento.
 
 RESPUESTA A AUDITAR:
 {answer}
@@ -254,22 +261,29 @@ PREGUNTA ORIGINAL:
 {question}
 
 TAREA:
-1. Verifica si las afirmaciones de la respuesta están respaldadas por el contexto
-2. Identifica inconsistencias o información no verificable
-3. Determina el nivel de riesgo y estado de compliance
+1. Verifica si las afirmaciones de la respuesta están respaldadas por el contexto.
+2. Identifica riesgos específicos (factores de riesgo) para la viabilidad de la oferta.
+3. Evalúa la severidad y probabilidad de cada riesgo.
 
 CRITERIOS DE RIESGO:
-- low: Toda la información es verificable y consistente
-- medium: Hay pequeñas inconsistencias o datos aproximados
-- high: Hay información importante no verificable o faltan datos
-- critical: Hay afirmaciones falsas o errores graves
+- low: Riesgo menor, gestionable.
+- medium: Riesgo moderado, requiere mitigación.
+- high: Riesgo alto, puede comprometer la oferta.
+- critical: Riesgo crítico, "Showstopper" (ej: inhabilitación, incumplimiento legal grave).
 
 RESPONDE SOLO EN JSON:
 {{
-    "risk_level": "low|medium|high|critical",
-    "compliance_status": "approved|pending|rejected",
-    "issues": ["Lista SOLO observaciones NUEVAS que aporten info adicional, NO repetir lo que ya dice la respuesta. Si no hay issues nuevos, devuelve lista vacía []"],
-    "gate_passed": true/false
+    "risk_factors": [
+        {{
+            "description": "Descripción del riesgo detectado",
+            "category": "financial|legal|technical|timeline|requirements|reputation",
+            "severity": "low|medium|high|critical",
+            "probability": 0.1-1.0 (float)
+        }}
+    ],
+    "compliance_status": "approved|pending|rejected", 
+    "gate_passed": true/false,
+    "issues": ["Lista de observaciones textuales (resumen)"]
 }}"""
 
 
@@ -307,7 +321,11 @@ async def risk_audit(
         context_text = "\n\n---\n\n".join(doc.page_content for doc in context[:5])  # Limitar a 5 docs
         
         llm = get_llm(temperature=0.0)
-        prompt = UNIFIED_RISK_PROMPT.format(
+        
+        # Use Enhanced Prompt if Skill is available
+        prompt_template = UNIFIED_RISK_PROMPT_ENHANCED if RISK_CALCULATOR_AVAILABLE else UNIFIED_RISK_PROMPT
+        
+        prompt = prompt_template.format(
             answer=answer[:3000],  # Limitar longitud
             context=context_text[:4000],
             question=question
@@ -320,18 +338,84 @@ async def risk_audit(
             logger.node_exit("risk_audit", "Failed to parse JSON - defaulting to medium/approved")
             return "medium", "approved", [], True
         
-        risk_level: RiskLevel = result.get("risk_level", "medium")
+        # Default/Fallback values
+        risk_level: RiskLevel = result.get("risk_level", "medium")  # Will be recalculated if skill active
         compliance: ComplianceStatus = result.get("compliance_status", "approved")
         issues = result.get("issues", [])
         gate_passed = result.get("gate_passed", True)
-        
-        # Validar valores
+
+        # --- SKILL INTEGRATION: Risk Score Calculator ---
+        if RISK_CALCULATOR_AVAILABLE and "risk_factors" in result:
+            try:
+                raw_factors = result.get("risk_factors", [])
+                risk_inputs = []
+                
+                for rf in raw_factors:
+                    # Validate and convert to RiskFactorInput
+                    try:
+                        # Map strings to Enums safely
+                        sev_str = rf.get("severity", "medium").upper()
+                        cat_str = rf.get("category", "financial").upper()
+                        
+                        # Handle potential mapping errors dynamically could be cleaner, but hardcoding for safety
+                        severity = getattr(SkillSeverity, sev_str, SkillSeverity.MEDIUM)
+                        category = getattr(RiskCategory, cat_str, RiskCategory.FINANCIAL)
+                        
+                        risk_inputs.append(RiskFactorInput(
+                            description=rf.get("description", "Unknown risk"),
+                            category=category,
+                            severity=severity,
+                            probability=float(rf.get("probability", 0.5)),
+                            source_agent="RiskSentinel"
+                        ))
+                    except Exception as conv_err:
+                        logger.warning(f"Skipping malformed risk factor: {conv_err}")
+                
+                if risk_inputs:
+                    calc = RiskScoreCalculator(allow_empty_risks=True)
+                    assessment = calc.calculate(risk_inputs)
+                    
+                    # Override outcomes based on deterministic calculation
+                    logger.info(f"Risk Score Calculated: {assessment.total_score} ({assessment.recommendation.value})")
+                    
+                    # Map Recommendation to ComplianceStatus
+                    if assessment.recommendation == Recommendation.GO:
+                        compliance = "approved"
+                        risk_level = "low"
+                        gate_passed = True
+                    elif assessment.recommendation == Recommendation.REVIEW:
+                        compliance = "pending"
+                        risk_level = "medium" # or high depending on score
+                        gate_passed = True # Pending usually doesn't block flow in this graph logic? 
+                                          # In graph: 'refine' if revision < 2.
+                                          # If gate_passed is False?
+                    else: # NO_GO
+                        compliance = "rejected"
+                        risk_level = "critical"
+                        gate_passed = False
+                        
+                    # If high score but review needed
+                    if assessment.total_score < 70:
+                        risk_level = "high"
+                    if assessment.total_score < 40:
+                        risk_level = "critical"
+
+                    # Add calculation insights to issues
+                    issues.append(f"[RiskScore] Score: {assessment.total_score}/100. Rec: {assessment.recommendation.value}")
+                    if assessment.kill_switch_activated:
+                        issues.append(f"[RiskScore] KILL SWITCH ACTIVATED: {assessment.recommendation_reason}")
+
+            except Exception as s_err:
+                logger.error(f"Skill 'risk-score-calculator' execution failed: {s_err}")
+        # ------------------------------------------------
+
+        # Validaciones finales
         if risk_level not in ["low", "medium", "high", "critical"]:
             risk_level = "medium"
         if compliance not in ["approved", "pending", "rejected"]:
             compliance = "approved"
         
-        # Filtrar issues vacíos o placeholder
+        # Filtrar issues vacíos
         issues = [i for i in issues if i and not i.startswith("Lista SOLO")]
         
         logger.node_exit(

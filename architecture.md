@@ -1,107 +1,131 @@
 # TenderCortex - Architecture Blueprint
 
 ## 1. Vision General
-Sistema de automatizacion de respuestas a licitaciones basado en arquitectura multi-agente con **subagentes especializados por dominio**. Utiliza un orquestador de estados (LangGraph) para coordinar la ingesta de documentos, recuperacion de informacion (RAG) y generacion de respuestas con enrutamiento inteligente.
+
+Sistema multi-agente para automatizar el analisis de licitaciones publicas. Utiliza **LangGraph** como orquestador de estados para coordinar ingesta de documentos, RAG (Retrieval-Augmented Generation), enrutamiento inteligente a subagentes especializados, y auditoria de calidad con refinamiento iterativo.
 
 ## 2. Stack Tecnologico
+
 | Componente | Tecnologia | Notas |
 |------------|------------|-------|
-| **LLM Inference** | Groq API (Llama 3.3 70B) | Alta velocidad, bajo costo |
-| **Orquestacion** | LangGraph | State Machines con subagentes |
-| **Vector Database** | Qdrant (In-Memory) | Zero maintenance, 100% free |
-| **Embeddings** | HuggingFace Inference API | Cloud (API-based, saves RAM) |
+| **Orquestacion** | LangGraph | State Machine con subagentes |
+| **LLM** | Groq API (Llama 3.3 70B) | Alta velocidad, bajo costo |
+| **Embeddings** | HuggingFace Inference API | Cloud-based (ahorra RAM) |
+| **Vector DB** | Qdrant (In-Memory) | Efimero por diseno, zero-maintenance |
 | **Backend** | FastAPI (Async) | Pydantic V2 |
-| **Ingesta** | Docling | Extraccion de PDF |
 | **Frontend** | React + Vite + TypeScript | TailwindCSS |
+| **Ingesta** | Docling | Extraccion de PDF |
 
-## 3. Estructura de Directorios (Monorepo)
-```
-/rfp-orchestrator
-├── /backend
-│   ├── /app
-│   │   ├── /core           # Config, Logging (AgentLogger), Settings
-│   │   ├── /schemas        # Pydantic: QueryRequest, QueryResponse, AgentMetadata
-│   │   ├── /services       # RAG, Embeddings, LLM Factory
-│   │   ├── /agents
-│   │   │   ├── rfp_graph.py    # Grafo principal LangGraph
-│   │   │   └── subagents.py    # Router + 6 subagentes especializados
-│   │   ├── /api            # Endpoints REST
-│   │   └── main.py
-│   ├── requirements.txt
-│   └── .env
-├── /frontend
-│   ├── /src
-│   │   ├── /components     # ChatMessage (con AgentMetadata badge)
-│   │   ├── /hooks          # useRFP
-│   │   ├── types.ts        # AgentMetadata, AgentDomain
-│   │   └── App.tsx
-│   └── package.json
-└── README.md
-```
-
-## 4. Flujo del Agente Multi-Agent (LangGraph)
+## 3. Estructura del Proyecto
 
 ```
-State: {
-    question: str,
-    context: List[Doc],
-    filtered_context: List[Doc],
-    domain: str,          # Dominio clasificado (legal, technical, financial, etc.)
-    answer: str,
-    audit_result: str,
-    revision_count: int
-}
+/TenderCortex
+├── backend/
+│   ├── app/
+│   │   ├── agents/               # LangGraph: orquestacion multi-agente
+│   │   │   ├── rfp_graph.py      # Grafo principal (StateGraph)
+│   │   │   ├── agent_factory.py  # Factory pattern para agentes
+│   │   │   ├── risk_sentinel.py  # Auditor de compliance y riesgo
+│   │   │   ├── quant.py          # Analista cuantitativo
+│   │   │   ├── base/             # Clase base Agent (OOP)
+│   │   │   ├── specialists/      # 6 subagentes por dominio
+│   │   │   └── prompts/          # Templates de prompts
+│   │   ├── api/                  # Endpoints REST
+│   │   ├── core/                 # Config, logging, excepciones
+│   │   ├── schemas/              # Modelos Pydantic (request/response)
+│   │   └── services/             # RAG, LLM, embeddings, vector store
+│   │
+│   ├── skills/                   # 8 skills del producto
+│   │   ├── compliance_audit_validator/
+│   │   ├── context_retriever/
+│   │   ├── financial_table_parser/
+│   │   ├── gantt_timeline_extractor/
+│   │   ├── knowledge_graph_builder/
+│   │   ├── rfp_document_loader/
+│   │   ├── risk_score_calculator/
+│   │   └── tech_stack_mapper/
+│   │
+│   └── tests/
+│       ├── unit/                 # Tests unitarios
+│       └── integration/          # Tests de integracion
+│
+└── frontend/
+    └── src/
+        ├── components/           # ChatInput, ChatMessage, Sidebar
+        ├── hooks/                # useRFP (estado de la aplicacion)
+        └── types.ts              # TypeScript definitions
 ```
 
+## 4. Flujo del Agente (LangGraph StateGraph)
+
 ```
-[START] --> [Retrieve (k=10)] --> [Grade_Documents] --> [Router]
-                                                            |
-                                                    (Clasifica dominio)
-                                                            |
-                    +-------+-------+-------+-------+-------+
-                    |       |       |       |       |       |
-                 legal  technical financial timeline requirements general
-                    |       |       |       |       |       |
-                    +-------+-------+-------+-------+-------+
-                                        |
-                                  [Specialist]
-                                  (Subagente especializado)
-                                        |
-                                  [Auditor_Check]
-                                        |
-                                 (Pasa Calidad?)
-                                  /            \
-                                NO              SI
-                               /                 \
-                     [Refine_Answer]            [END]
-                            |
-                            v
-                     (max 2 revisiones)
-                            |
-                     [Auditor_Check] <--+
+[START] → [Retrieve (k=10)] → [Grade Documents] → [Router]
+                                                      │
+                                              (Clasifica dominio)
+                                                      │
+                ┌──────┬──────┬──────┬──────┬──────┬──────┐
+                │      │      │      │      │      │      │
+             legal  tech  financial timeline reqs  general quant
+                │      │      │      │      │      │      │
+                └──────┴──────┴──────┴──────┴──────┴──────┘
+                                    │
+                              [Specialist]
+                                    │
+                            [Risk Sentinel]
+                                    │
+                             (Pasa auditoria?)
+                              /            \
+                            NO              SI
+                           /                 \
+                 [Refine Answer]            [END]
+                        │
+                  (max 2 intentos)
+                        │
+                 [Risk Sentinel] ←──┘
 ```
 
-### Descripcion de Nodos:
-- **Retrieve**: Busca k=10 chunks del vector store
-- **Grade_Documents**: LLM evalua relevancia de cada chunk para la pregunta
-- **Router**: Clasifica la pregunta en un dominio especializado
-- **Specialist**: Genera respuesta usando el subagente del dominio apropiado
-- **Auditor_Check**: Verifica calidad considerando el dominio especializado
-- **Refine_Answer**: Mejora respuestas insuficientes con contexto del dominio (max 2 intentos)
+### Nodos del Grafo
 
-### Dominios de Subagentes Especializados
+| Nodo | Funcion |
+|------|---------|
+| **Retrieve** | Busca k=10 chunks relevantes del vector store |
+| **Grade Documents** | LLM evalua relevancia de cada chunk |
+| **Router** | Clasifica la pregunta en un dominio especializado |
+| **Specialist** | Genera respuesta con el subagente del dominio |
+| **Risk Sentinel** | Auditoria de calidad y compliance |
+| **Refine** | Mejora respuestas rechazadas (max 2 iteraciones) |
+| **QuanT** | Analisis cuantitativo cuando se detectan datos numericos |
+
+### Dominios de Subagentes
+
 | Dominio | Especialidad |
 |---------|-------------|
-| **legal** | Normativa, jurisdiccion, propiedad intelectual, confidencialidad, sanciones |
-| **technical** | Arquitectura, stack tecnologico, integraciones, APIs, SLAs tecnicos |
-| **financial** | Presupuesto, pagos, garantias, financiamiento, ajustes de precios |
-| **timeline** | Cronograma, fechas, plazos, fases, hitos temporales |
-| **requirements** | Requisitos de participacion, experiencia, personal clave, capacidades |
-| **general** | Preguntas que abarcan multiples dominios o no encajan en categorias especificas |
+| **legal** | Normativa, jurisdiccion, propiedad intelectual, sanciones |
+| **technical** | Arquitectura, stack, integraciones, APIs, SLAs |
+| **financial** | Presupuesto, pagos, garantias, ajustes de precios |
+| **timeline** | Cronograma, fechas, plazos, fases, hitos |
+| **requirements** | Requisitos de participacion, experiencia, personal |
+| **general** | Consultas multi-dominio o no categorizables |
+| **quantitative** | Analisis numerico, comparaciones, visualizaciones |
 
-## 5. API Response con Metadata de Agentes
+## 5. Skills del Producto
 
-Cada respuesta del endpoint `/api/chat` incluye metadata de trazabilidad:
+Cada skill sigue un patron consistente: `SKILL.md` + `definition.py` (Pydantic) + `impl.py`.
+
+| Skill | Tipo | Funcion |
+|-------|------|---------|
+| **rfp_document_loader** | Ingesta | Carga y chunking de PDFs (nativo + OCR) |
+| **context_retriever** | RAG | Recuperacion con MMR y filtrado por metadata |
+| **compliance_audit_validator** | Auditoria | Verificacion de requisitos (COMPLIANT / NON_COMPLIANT / PARTIAL) |
+| **risk_score_calculator** | Scoring | Viabilidad 0-100 con kill switch para riesgos criticos |
+| **financial_table_parser** | Extraccion | Tablas financieras de PDF (monedas, celdas fusionadas) |
+| **gantt_timeline_extractor** | Extraccion | Fechas ISO 8601, dependencias, hitos |
+| **knowledge_graph_builder** | Analisis | Grafos de dependencias con deteccion de ciclos |
+| **tech_stack_mapper** | Analisis | Normalizacion de tecnologias (200+ mappings canonicos) |
+
+## 6. API Response
+
+Cada respuesta incluye metadata de trazabilidad del pipeline completo:
 
 ```json
 {
@@ -118,124 +142,18 @@ Cada respuesta del endpoint `/api/chat` incluye metadata de trazabilidad:
 }
 ```
 
-## 6. Sistema de Logging y Trazabilidad
-
-El pipeline genera logs detallados de cada paso:
-
-```
-╔══ PIPELINE START ═════════════════════════════════════════════════
-║ Question: Cual es el presupuesto total?
-║ Flow: START → retrieve → grade_documents → router → specialist → auditor → END
-═════════════════════════════════════════════════════════════════════
-◆ ROUTING: START → retrieve | Reason: Initial node
-◆ ROUTING: retrieve → grade_documents | Reason: Passing 10 docs
-◆ SPECIALIST SELECTED: specialist_financial
-◆ ROUTING: router → specialist_financial | Reason: Question classified as FINANCIAL
-◆ ROUTING: auditor → END | Reason: Quality PASSED
-╚══ PIPELINE COMPLETE ══════════════════════════════════════════════
-   ◆ Domain Selected: FINANCIAL
-   ◆ Specialist Used: specialist_financial
-   ◆ Documents: 10 retrieved → 4 filtered
-   ◆ Revisions: 0 | Audit: pass
-```
-
 ## 7. Arquitectura de Despliegue
 
 ```
-                    [Cliente Browser]
-                          │
-                          ▼
-                    [Frontend React]
-                    (Vite Dev Server)
-                          │
-                          ▼ HTTP POST /api/chat
-                    [FastAPI Backend]
-                    (Puerto 8000)
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-     [Qdrant]        [Groq API]     [HuggingFace]
-   (In-Memory)    (LLM Inference)  (Embeddings)
+[Browser] → [Vercel: React/Vite] → [Render: FastAPI] → [Groq + HuggingFace + Qdrant]
 ```
 
-**Nota:** Todos los subagentes corren en el mismo proceso/puerto. No requieren puertos separados ya que son nodos del grafo LangGraph con prompts especializados, no microservicios independientes.
+| Capa | Servicio | Notas |
+|------|----------|-------|
+| **Frontend** | Vercel | React + Vite, deploy automatico |
+| **Backend** | Render (Free Tier) | FastAPI, ~50s cold start |
+| **Vector DB** | Qdrant In-Memory | Efimero: Privacy by Design |
+| **LLM** | Groq API | Llama 3.3 70B |
+| **Embeddings** | HuggingFace API | Cloud-based |
 
-## 8. Subagentes Avanzados (Roadmap - Pendiente)
-
-### 8.1 QuanT - Analista Cuantitativo
-
-**Rol:** Cerebro matematico y visual. Garantiza que ningun numero sea una alucinacion y que los datos cuenten una historia visual.
-
-**Mentalidad:**
-> "No soy un escritor, soy un calculador. No adivino tendencias, las computo. Si los datos estan sucios, los limpio antes de usarlos. Mi salida es siempre evidencia visual o numerica verificada."
-
-**Proceso Cognitivo:**
-1. **Ingesta y Saneamiento:** Recibe datos desordenados (tablas de PDF, JSONs crudos). Detecta anomalias (nulos, formatos incorrectos) y estandariza.
-2. **Seleccion de Estrategia Visual:**
-   - Comparar volumenes -> Grafico de Barras
-   - Evolucion temporal -> Grafico de Linea
-   - Distribucion de presupuesto -> Grafico de Torta/Treemap
-3. **Razonamiento de Codigo:** Formula algoritmo logico para transformar `Datos A` en `Grafico B`.
-4. **Auto-Correccion (Loop):** Si el calculo da error o el grafico sale vacio, ajusta logica (ej. escala de ejes) y reintenta sin intervenir al usuario.
-5. **Interpretacion:** Lee su propio grafico y genera un "Insight" (ej. "Notese la caida del 20% en Q3").
-
-**Input:** Datos crudos + Intencion del usuario ("Comparame costos")
-**Output:** Objeto de Imagen (Archivo) + Breve resumen analitico
-
-**Integracion:** Nodo opcional activado cuando el router detecta necesidad de analisis cuantitativo/visual.
-
----
-
-### 8.2 Risk Sentinel - Auditor de Gates
-
-**Rol:** Oficial de cumplimiento (Compliance). Unico agente con permiso para decir "NO".
-
-**Mentalidad:**
-> "Confio, pero verifico. Mi trabajo es encontrar inconsistencias. No me importa lo bien que suene la propuesta; si no cumple la norma, la bloqueo. Soy pesimista por diseno."
-
-**Proceso Cognitivo:**
-1. **Desglose de Reglas:**
-   - Reglas "Duras" (Binarias): Tiene firma? SI/NO
-   - Reglas "Blandas" (Semanticas): Es el plan de mitigacion suficiente?
-2. **Verificacion Cruzada (Fact-Checking):**
-   - Toma afirmacion del borrador (ej. "Tenemos certificacion ISO 27001")
-   - Busca en Base de Conocimiento la evidencia (certificado real)
-   - Logica: Si encuentra certificado pero vencio en 2024 -> **ALERTA ROJA**
-3. **Evaluacion de Gates:**
-   - Identifica fase actual del proyecto (ej. Gate 2)
-   - Comprueba requisitos minimos para esa fase
-4. **Semaforo de Riesgo:**
-   - Asigna puntaje de riesgo
-   - Si riesgo es Alto, bloquea generacion de documento final hasta aprobacion humana
-
-**Input:** Borrador del documento o respuesta propuesta + Estado del Proyecto
-**Output:** Reporte de Auditoria (Aprobado / Rechazado con lista de problemas)
-
-**Integracion:** Evolucion del nodo `auditor` actual con capacidades de compliance y verificacion cruzada.
-
----
-
-### Flujo con Subagentes Avanzados (Futuro)
-
-```
-[Usuario] --> "Prepara respuesta financiera para Proyecto X"
-      |
-      v
-[Orquestador] --> Identifica tarea compleja
-      |
-      +---> [QuanT] --> Busca excels, calcula margenes, genera grafico de flujo de caja
-      |
-      +---> [Specialist_Financial] --> Redacta texto con formato corporativo
-      |
-      v
-[Risk Sentinel] --> Lee borrador, detecta margen 8% < politica 10%
-      |
-      v
-[RECHAZO] --> "No puedo generar documento. Margen (8%) bajo politica corporativa (10%). Desea solicitar excepcion?"
-```
-
-**Diferencia Arquitectonica:**
-- **Antes:** El agente *busca* informacion y la entrega
-- **Con mejoras:**
-  - **QuanT** *crea* nueva informacion (calculos/graficos)
-  - **Risk Sentinel** *juzga* la informacion (auditoria avanzada)
+Todos los subagentes corren en el mismo proceso. Son nodos del grafo LangGraph con prompts especializados, no microservicios independientes.

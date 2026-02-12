@@ -21,6 +21,13 @@ from app.agents.base import BaseSpecialistAgent, LLMProtocol, LoggerProtocol
 from app.agents.prompts import TECHNICAL_PROMPT, RESPONSE_FORMAT_TEMPLATE
 from app.core.exceptions import AgentProcessingError
 
+# [Skill Integration] - Tech Stack Mapper
+try:
+    from skills.tech_stack_mapper.impl import extract_tech_stack
+    TECH_MAPPER_AVAILABLE = True
+except ImportError:
+    TECH_MAPPER_AVAILABLE = False
+
 
 class TechnicalSpecialistAgent(BaseSpecialistAgent):
     """
@@ -34,6 +41,9 @@ class TechnicalSpecialistAgent(BaseSpecialistAgent):
     - Technical security (WAF, encryption, ISO certifications)
     - Functional modules and technical requirements
     - Performance and availability SLAs
+    
+    Enhanced with:
+    - Tech Stack Mapper skill for automated technology extraction
     """
 
     DOMAIN: str = "technical"
@@ -54,15 +64,15 @@ class TechnicalSpecialistAgent(BaseSpecialistAgent):
     ) -> str:
         """
         Generate a technical analysis response for the given question.
-
+        
         Args:
             question: The user's technical-related question.
             context: List of relevant document chunks for context.
-
+            
         Returns:
             A formatted response with technical analysis, including
             versions, standards, certifications, and metrics.
-
+            
         Raises:
             AgentProcessingError: If the LLM invocation fails.
         """
@@ -76,13 +86,39 @@ class TechnicalSpecialistAgent(BaseSpecialistAgent):
                 return "No encontré información técnica relevante para responder tu pregunta."
 
             self._log_debug(f"Processing with {len(context)} documents")
+            
+            # --- SKILL INTEGRATION: Tech Stack Mapper ---
+            skill_context = ""
+            if TECH_MAPPER_AVAILABLE and context_text.strip():
+                try:
+                    # Extract tech stack from the aggregated context
+                    # Note: Ideally this would process per-document or full document, 
+                    # but processing the retrieval context is a good approximation.
+                    tech_result = extract_tech_stack([context_text])
+                    
+                    if tech_result.entities:
+                        skill_context = (
+                            f"\n\n--- [SKILL] ANÁLISIS AUTOMÁTICO DE STACK TECNOLÓGICO ---\n"
+                            f"{tech_result.stack_summary}\n"
+                            f"Tecnologías Identificadas: {', '.join(e.canonical_name for e in tech_result.entities)}\n"
+                            f"----------------------------------------------------------\n"
+                        )
+                        self._log_debug(f"Skill 'tech-stack-mapper' found {len(tech_result.entities)} entities")
+                    else:
+                        self._log_debug("Skill 'tech-stack-mapper' executed but found no entities")
+                        
+                except Exception as s_err:
+                    self._log_error(f"Skill 'tech-stack-mapper' execution failed: {s_err}")
+                    # Fail silently, don't block the agent
+                    skill_context = ""
+            # --------------------------------------------
 
             full_system_prompt = f"{self.SYSTEM_PROMPT}\n\n{RESPONSE_FORMAT_TEMPLATE}"
 
             messages = [
                 SystemMessage(content=full_system_prompt),
                 HumanMessage(
-                    content=f"Contexto del documento:\n{context_text}\n\nPregunta: {question}"
+                    content=f"Contexto del documento:\n{context_text}\n{skill_context}\n\nPregunta: {question}"
                 ),
             ]
 

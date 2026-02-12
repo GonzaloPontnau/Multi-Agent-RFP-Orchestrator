@@ -21,6 +21,13 @@ from app.agents.base import BaseSpecialistAgent, LLMProtocol, LoggerProtocol
 from app.agents.prompts import FINANCIAL_PROMPT, RESPONSE_FORMAT_TEMPLATE
 from app.core.exceptions import AgentProcessingError
 
+# [Skill Integration] - Financial Table Parser
+try:
+    from skills.financial_table_parser.impl import extract_financial_tables
+    FINANCIAL_PARSER_AVAILABLE = True
+except ImportError:
+    FINANCIAL_PARSER_AVAILABLE = False
+
 
 class FinancialSpecialistAgent(BaseSpecialistAgent):
     """
@@ -34,9 +41,8 @@ class FinancialSpecialistAgent(BaseSpecialistAgent):
     - Price adjustment mechanisms
     - Financial capacity requirements (equity, liquidity, billing)
 
-    Attributes:
-        DOMAIN: The domain identifier ("financial").
-        SYSTEM_PROMPT: The specialized prompt for financial analysis.
+    Enhanced with:
+    - Financial Table Parser skill for deterministic extraction of budgets and price tables
     """
 
     DOMAIN: str = "financial"
@@ -90,12 +96,71 @@ class FinancialSpecialistAgent(BaseSpecialistAgent):
             # Format context from documents
             context_text = self._format_context(context)
 
-            # Handle empty context case
             if not context_text.strip():
                 self._log_exit("No financial context available")
                 return "No encontré información financiera relevante para responder tu pregunta."
 
             self._log_debug(f"Processing with {len(context)} documents")
+            
+            # --- SKILL INTEGRATION: Financial Table Parser ---
+            skill_context = ""
+            if FINANCIAL_PARSER_AVAILABLE and context:
+                try:
+                    # Group pages by source file to minimize opens
+                    files_to_pages = {}
+                    for doc in context:
+                        source = doc.metadata.get("source")
+                        page = doc.metadata.get("page")
+                        if source and page is not None:
+                            if source not in files_to_pages:
+                                files_to_pages[source] = set()
+                            files_to_pages[source].add(int(page))
+                    
+                    tables_found = []
+                    for file_path, pages in files_to_pages.items():
+                        # Limit pages to prevent slow processing (e.g., max 5 unique pages per query)
+                        # We sort and take a subset if needed, or just process all if reasonable count
+                        sorted_pages = sorted(list(pages))[:5] 
+                        page_range = ",".join(str(p) for p in sorted_pages)
+                        
+                        try:
+                            # Run parser
+                            result = extract_financial_tables(
+                                file_path=file_path,
+                                page_range=page_range,
+                                confidence_threshold=0.6
+                            )
+                            
+                            for table in result.tables:
+                                # Format brief summary table in Markdown
+                                headers = " | ".join(table.headers)
+                                sep = " | ".join(["---"] * len(table.headers))
+                                rows_md = []
+                                for r in table.rows:
+                                    row_vals = [str(r.raw_data.get(h, "")) for h in table.headers_original]
+                                    rows_md.append(" | ".join(row_vals))
+                                
+                                table_md = f"\n**Tabla en Pág {table.page_number} (Total detectado: {table.total_detected:,.2f} {table.currency_detected})**\n"
+                                table_md += f"| {headers} |\n| {sep} |\n"
+                                table_md += "\n".join([f"| {row} |" for row in rows_md])
+                                tables_found.append(table_md)
+
+                        except Exception as p_err:
+                            self._log_debug(f"Parser skipped file {file_path}: {p_err}")
+                            continue
+
+                    if tables_found:
+                        skill_context = (
+                            f"\n\n--- [SKILL] TABLAS FINANCIERAS DETECTADAS ---\n"
+                            f"{chr(10).join(tables_found)}\n"
+                            f"----------------------------------------------\n"
+                        )
+                        self._log_debug(f"Skill 'financial-table-parser' extracted {len(tables_found)} tables")
+                    
+                except Exception as s_err:
+                    self._log_error(f"Skill 'financial-table-parser' execution failed: {s_err}")
+                    skill_context = ""
+            # -----------------------------------------------
 
             # Build the full system prompt with response format
             full_system_prompt = f"{self.SYSTEM_PROMPT}\n\n{RESPONSE_FORMAT_TEMPLATE}"
@@ -104,7 +169,7 @@ class FinancialSpecialistAgent(BaseSpecialistAgent):
             messages = [
                 SystemMessage(content=full_system_prompt),
                 HumanMessage(
-                    content=f"Contexto del documento:\n{context_text}\n\nPregunta: {question}"
+                    content=f"Contexto del documento:\n{context_text}\n{skill_context}\n\nPregunta: {question}"
                 ),
             ]
 

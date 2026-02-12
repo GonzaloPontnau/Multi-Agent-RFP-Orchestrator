@@ -105,19 +105,25 @@ graph TD
 ## Project Structure
 
 ```text
-/rfp-orchestrator
-├── backend
-│   ├── app
-│   │   ├── agents      # LangGraph flows and sub-agents
-│   │   ├── core        # Configuration and logging
-│   │   ├── services    # RAG, LLM, and Embeddings services
-│   │   └── main.py     # Application entry point
-│   └── requirements.txt
-├── frontend
-│   ├── src
-│   │   ├── components  # UI Components
-│   │   ├── hooks       # Custom React hooks
-│   └── package.json
+/TenderCortex
+├── backend/
+│   ├── app/
+│   │   ├── agents/            # LangGraph orchestration & sub-agents
+│   │   │   ├── rfp_graph.py   # Main StateGraph
+│   │   │   ├── risk_sentinel  # Compliance auditor
+│   │   │   ├── quant          # Quantitative analysis
+│   │   │   └── specialists/   # 6 domain-specific agents
+│   │   ├── core/              # Config, logging, exceptions
+│   │   ├── schemas/           # Pydantic request/response models
+│   │   ├── services/          # RAG, LLM, embeddings, vector store
+│   │   └── main.py            # Application entry point
+│   ├── skills/                # 8 product skills (audit, parsing, scoring...)
+│   └── tests/                 # Unit & integration tests
+├── frontend/
+│   └── src/
+│       ├── components/        # ChatInput, ChatMessage, Sidebar
+│       ├── hooks/             # useRFP (application state)
+│       └── types.ts           # TypeScript definitions
 └── README.md
 ```
 
