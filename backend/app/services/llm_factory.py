@@ -16,7 +16,9 @@ def get_llm(temperature: float = 0.0) -> ChatGroq:
     """
     Factory singleton para instancias de ChatGroq.
     
-    Modelo: Llama 3.3 70B (gratis, 14,400 req/dia)
+    Modelo: OpenAI GPT-OSS 120B (500 tps, 1K RPM, 250K TPM)
+    - Flagship open-weight de OpenAI con capacidades de razonamiento
+    - Context window: 131K input / 65K output
     
     Rate Limit Tuning:
     - request_timeout: 60s (sufficient for complex responses)

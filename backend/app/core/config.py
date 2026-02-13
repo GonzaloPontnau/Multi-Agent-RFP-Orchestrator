@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # Groq
     groq_api_key: str = Field(..., min_length=1)
-    groq_model: str = Field(default="llama-3.3-70b-versatile")
+    groq_model: str = Field(default="openai/gpt-oss-120b")
 
     # HuggingFace (for API-based embeddings - saves RAM on free tier)
     huggingface_api_key: str = Field(..., min_length=1)
