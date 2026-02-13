@@ -11,7 +11,6 @@ Mi salida es siempre evidencia visual o numerica verificada."
 import base64
 import io
 import json
-import re
 from typing import Literal
 
 import matplotlib
@@ -22,22 +21,34 @@ import numpy as np
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.core.config import settings
 from app.core.logging import AgentLogger
 from app.services import get_llm
+from app.agents.utils import parse_json_response as _parse_json_response
 
 logger = AgentLogger("quant")
 
 ChartType = Literal["bar", "line", "pie", "table", "none"]
 
-# Prompt para extraer datos numericos del contexto
-EXTRACTION_PROMPT = """Eres un extractor de datos numericos especializado en documentos de licitaciones.
-Tu tarea es identificar y extraer TODOS los datos numericos relevantes del contexto para responder la pregunta.
+# Combined prompt: extract numerical data AND select chart strategy in one call
+EXTRACTION_AND_STRATEGY_PROMPT = """Eres un extractor de datos numericos y experto en visualizacion, especializado en documentos de licitaciones.
 
-INSTRUCCIONES:
-1. Busca montos, porcentajes, cantidades, fechas con valores, metricas
-2. Identifica las categorias o etiquetas asociadas a cada numero
-3. Detecta si hay series temporales o comparaciones
-4. Indica si los datos estan completos o hay valores faltantes
+TAREA DOBLE:
+1. Identifica y extrae TODOS los datos numericos relevantes del contexto para responder la pregunta
+2. Decide la mejor forma de visualizar esos datos
+
+INSTRUCCIONES DE EXTRACCION:
+- Busca montos, porcentajes, cantidades, fechas con valores, metricas
+- Identifica las categorias o etiquetas asociadas a cada numero
+- Detecta si hay series temporales o comparaciones
+- Indica si los datos estan completos o hay valores faltantes
+
+REGLAS DE VISUALIZACION:
+- Comparar volumenes/cantidades -> "bar" (grafico de barras)
+- Evolucion temporal/tendencias -> "line" (grafico de lineas)
+- Distribucion/porcentajes de un todo -> "pie" (grafico circular)
+- Datos tabulares complejos -> "table" (tabla formateada)
+- Valor unico, datos insuficientes o sin datos -> "none" (solo texto)
 
 FORMATO DE RESPUESTA (JSON estricto):
 {{
@@ -47,6 +58,7 @@ FORMATO DE RESPUESTA (JSON estricto):
     "values": [valor1, valor2, ...],
     "unit": "USD" | "ARS" | "%" | "dias" | "unidades" | "otro",
     "data_quality": "clean" | "sanitized" | "incomplete",
+    "chart_type": "bar" | "line" | "pie" | "table" | "none",
     "notes": "observaciones sobre los datos"
 }}
 
@@ -58,6 +70,7 @@ Si NO hay datos numericos relevantes, responde:
     "values": [],
     "unit": "",
     "data_quality": "incomplete",
+    "chart_type": "none",
     "notes": "No se encontraron datos numericos relevantes para la pregunta"
 }}
 
@@ -68,25 +81,6 @@ Pregunta del usuario:
 {question}
 
 Responde SOLO con el JSON, sin texto adicional:"""
-
-# Prompt para decidir estrategia visual
-STRATEGY_PROMPT = """Eres un experto en visualizacion de datos. Basandote en el tipo de datos,
-decide la mejor forma de visualizarlos.
-
-REGLAS:
-- Comparar volumenes/cantidades -> "bar" (grafico de barras)
-- Evolucion temporal/tendencias -> "line" (grafico de lineas)
-- Distribucion/porcentajes de un todo -> "pie" (grafico circular)
-- Datos tabulares complejos -> "table" (tabla formateada)
-- Valor unico o datos insuficientes -> "none" (solo texto)
-
-Datos extraidos:
-{data}
-
-Pregunta del usuario:
-{question}
-
-Responde SOLO con una palabra: bar, line, pie, table, o none"""
 
 # Prompt para generar insight
 INSIGHT_PROMPT = """Eres QuanT, un analista cuantitativo experto. Genera un insight claro y conciso
@@ -106,70 +100,43 @@ Pregunta original: {question}
 Genera el insight (2-4 oraciones):"""
 
 
-def _parse_json_response(response: str) -> dict | None:
-    """Parsea respuesta JSON del LLM, manejando posibles errores."""
-    try:
-        # Limpiar posibles marcadores de codigo
-        clean = response.strip()
-        if clean.startswith("```"):
-            clean = re.sub(r"```(?:json)?\n?", "", clean)
-            clean = clean.rstrip("`")
-        return json.loads(clean)
-    except json.JSONDecodeError:
-        return None
+async def extract_data_and_strategy(context: list[Document], question: str) -> tuple[dict, ChartType]:
+    """Extracts numerical data AND selects chart strategy in a single LLM call.
 
+    Combines what were previously two separate LLM calls into one,
+    saving ~1-2 seconds per quantitative query.
 
-async def extract_numerical_data(context: list[Document], question: str) -> dict:
-    """Extrae y sanitiza datos numericos del contexto."""
-    logger.node_enter("quant_extract", {"question": question})
-    
+    Returns:
+        tuple: (data_dict, chart_type)
+    """
+    logger.node_enter("quant_extract_and_strategy", {"question": question})
+
+    empty_data = {"data_found": False, "data_type": "none", "categories": [],
+                  "values": [], "unit": "", "data_quality": "incomplete",
+                  "chart_type": "none", "notes": ""}
+
     try:
         context_text = "\n\n---\n\n".join(doc.page_content for doc in context)
         if not context_text.strip():
-            logger.node_exit("quant_extract", "No context available")
-            return {"data_found": False, "data_type": "none", "categories": [], 
-                    "values": [], "unit": "", "data_quality": "incomplete",
-                    "notes": "Sin contexto disponible"}
-        
-        llm = get_llm(temperature=0.0)
-        prompt = EXTRACTION_PROMPT.format(context=context_text[:6000], question=question)
+            logger.node_exit("quant_extract_and_strategy", "No context available")
+            return empty_data, "none"
+
+        llm = get_llm(temperature=settings.quant_extract_temperature)
+        prompt = EXTRACTION_AND_STRATEGY_PROMPT.format(
+            context=context_text[: settings.context_max_chars],
+            question=question,
+        )
         response = await llm.ainvoke([HumanMessage(content=prompt)])
-        
+
         data = _parse_json_response(response.content)
         if not data:
-            logger.debug("quant_extract", "Failed to parse JSON, returning empty data")
-            return {"data_found": False, "data_type": "none", "categories": [], 
-                    "values": [], "unit": "", "data_quality": "incomplete",
-                    "notes": "Error parsing data extraction response"}
-        
-        logger.node_exit("quant_extract", f"Found {len(data.get('values', []))} values, type: {data.get('data_type')}")
-        return data
-    except Exception as e:
-        logger.error("quant_extract", e)
-        return {"data_found": False, "data_type": "none", "categories": [], 
-                "values": [], "unit": "", "data_quality": "incomplete",
-                "notes": f"Error: {str(e)}"}
+            logger.debug("quant_extract_and_strategy", "Failed to parse JSON")
+            return empty_data, "none"
 
-
-async def select_chart_strategy(data: dict, question: str) -> ChartType:
-    """Decide el tipo de visualizacion optimo."""
-    logger.node_enter("quant_strategy", {"data_type": data.get("data_type")})
-    
-    # Si no hay datos, no hay grafico
-    if not data.get("data_found") or not data.get("values"):
-        logger.node_exit("quant_strategy", "none (no data)")
-        return "none"
-    
-    try:
-        llm = get_llm(temperature=0.0)
-        prompt = STRATEGY_PROMPT.format(data=json.dumps(data, ensure_ascii=False), question=question)
-        response = await llm.ainvoke([HumanMessage(content=prompt)])
-        
-        chart_type = response.content.strip().lower()
+        # Extract chart_type from the combined response
+        chart_type: ChartType = data.pop("chart_type", "none")
         valid_types: list[ChartType] = ["bar", "line", "pie", "table", "none"]
-        
         if chart_type not in valid_types:
-            # Fallback basado en tipo de datos
             data_type = data.get("data_type", "")
             if data_type == "comparison":
                 chart_type = "bar"
@@ -178,13 +145,20 @@ async def select_chart_strategy(data: dict, question: str) -> ChartType:
             elif data_type == "distribution":
                 chart_type = "pie"
             else:
-                chart_type = "bar"  # Default
-        
-        logger.node_exit("quant_strategy", chart_type)
-        return chart_type
+                chart_type = "bar"
+
+        # If no data found, force chart_type to none
+        if not data.get("data_found") or not data.get("values"):
+            chart_type = "none"
+
+        logger.node_exit(
+            "quant_extract_and_strategy",
+            f"Found {len(data.get('values', []))} values, type: {data.get('data_type')}, chart: {chart_type}"
+        )
+        return data, chart_type
     except Exception as e:
-        logger.error("quant_strategy", e)
-        return "none"
+        logger.error("quant_extract_and_strategy", e)
+        return empty_data, "none"
 
 
 def generate_chart(data: dict, chart_type: ChartType, max_retries: int = 2) -> str | None:
@@ -268,7 +242,7 @@ async def generate_insight(chart_type: ChartType, data: dict, question: str) -> 
     logger.node_enter("quant_insight", {"chart_type": chart_type})
     
     try:
-        llm = get_llm(temperature=0.1)
+        llm = get_llm(temperature=settings.quant_insight_temperature)
         prompt = INSIGHT_PROMPT.format(
             chart_type=chart_type if chart_type != "none" else "sin grafico (solo texto)",
             data=json.dumps(data, ensure_ascii=False),
@@ -309,15 +283,12 @@ async def quant_analyze(
     logger.node_enter("quant_analyze", {"question": question})
     
     try:
-        # 1. Extraer datos numericos
-        data = await extract_numerical_data(context, question)
-        
-        # 2. Seleccionar estrategia visual
-        chart_type = await select_chart_strategy(data, question)
-        
+        # 1+2. Extract data AND select chart strategy in a single LLM call
+        data, chart_type = await extract_data_and_strategy(context, question)
+
         # 3. Generar grafico (con retry)
         chart_base64 = generate_chart(data, chart_type) if chart_type not in ["none", "table"] else None
-        
+
         # 4. Generar insight
         insights = await generate_insight(chart_type, data, question)
         

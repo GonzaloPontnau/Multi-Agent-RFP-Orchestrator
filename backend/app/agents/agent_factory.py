@@ -132,7 +132,7 @@ class AgentFactory:
             raise NotImplementedError(
                 f"Agent for domain '{domain}' has not been migrated to OOP yet. "
                 f"Currently migrated domains: {list(self._registry.keys())}. "
-                f"Use legacy subagents.specialist_generate() for now."
+                f"Provide an explicit fallback handler for this domain."
             )
 
         # Instantiate with injected dependencies

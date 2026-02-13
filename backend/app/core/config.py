@@ -29,6 +29,28 @@ class Settings(BaseSettings):
     # RAG Settings (Qdrant in-memory - no external credentials needed)
     chunk_size: int = Field(default=1000, ge=100, le=4000)
     chunk_overlap: int = Field(default=200, ge=0, le=1000)
+    ingestion_batch_size: int = Field(default=50, ge=1, le=500)
+
+    # Pipeline settings
+    retrieval_k: int = Field(default=10, ge=1, le=50)
+    grader_doc_truncation: int = Field(default=1500, ge=200, le=10000)
+    safety_net_min_docs: int = Field(default=3, ge=1, le=20)
+    safety_net_fallback_docs: int = Field(default=5, ge=1, le=20)
+    max_audit_revisions: int = Field(default=2, ge=0, le=10)
+    context_max_chars: int = Field(default=6000, ge=500, le=30000)
+    answer_max_chars: int = Field(default=3000, ge=100, le=20000)
+
+    # Model temperatures
+    router_temperature: float = Field(default=0.0, ge=0.0, le=1.0)
+    grader_temperature: float = Field(default=0.0, ge=0.0, le=1.0)
+    refine_temperature: float = Field(default=0.1, ge=0.0, le=1.0)
+    quant_extract_temperature: float = Field(default=0.0, ge=0.0, le=1.0)
+    quant_insight_temperature: float = Field(default=0.1, ge=0.0, le=1.0)
+    risk_temperature: float = Field(default=0.0, ge=0.0, le=1.0)
+
+    # API cache
+    cache_ttl_seconds: int = Field(default=300, ge=10, le=86400)
+    cache_max_size: int = Field(default=100, ge=1, le=10000)
 
     @property
     def is_development(self) -> bool:

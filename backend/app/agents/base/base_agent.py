@@ -26,6 +26,7 @@ from langchain_core.documents import Document
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from app.agents.prompts import get_full_prompt, RESPONSE_FORMAT_TEMPLATE
+from app.core.exceptions import AgentProcessingError
 
 
 # =============================================================================
@@ -284,20 +285,32 @@ class BaseSpecialistAgent(ABC):
 
         Returns:
             The generated response string.
+
+        Raises:
+            AgentProcessingError: If the LLM invocation fails.
         """
-        self._log_enter({"question": question})
+        self._log_enter({"question": question, "context_size": len(context)})
 
-        context_text = self._format_context(context)
+        try:
+            context_text = self._format_context(context)
 
-        if not context_text.strip():
-            self._log_exit("No context available")
-            return "No encontré información relevante para responder tu pregunta."
+            if not context_text.strip():
+                self._log_exit("No context available")
+                return "No encontré información relevante para responder tu pregunta."
 
-        self._log_debug(f"Using {len(context)} docs for generation")
+            self._log_debug(f"Using {len(context)} docs for generation")
 
-        messages = self._build_messages(question, context_text)
-        response = await self._llm.ainvoke(messages)
-        answer = response.content
+            messages = self._build_messages(question, context_text)
+            response = await self._llm.ainvoke(messages)
+            answer = response.content
 
-        self._log_exit(f"{len(answer)} chars generated")
-        return answer
+            self._log_exit(f"{len(answer)} chars generated")
+            return answer
+
+        except Exception as e:
+            self._log_error(e)
+            raise AgentProcessingError(
+                message=f"Failed to generate {self.DOMAIN} response",
+                agent_name=self.node_name,
+                original_error=e,
+            )

@@ -3,10 +3,6 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class QueryRequest(BaseModel):
-    question: str = Field(..., min_length=1, max_length=2000)
-
-
 class QuantAnalysis(BaseModel):
     """Output del subagente QuanT - Analista Cuantitativo."""
     chart_base64: str | None = Field(default=None, description="Grafico en formato base64")
@@ -33,15 +29,3 @@ class AgentMetadata(BaseModel):
     audit_result: str = Field(description="Resultado de la auditoria de calidad (pass/fail)")
     quant_analysis: QuantAnalysis | None = Field(default=None, description="Analisis cuantitativo si aplica")
     risk_assessment: RiskAssessment | None = Field(default=None, description="Evaluacion de riesgo y compliance")
-
-
-class QueryResponse(BaseModel):
-    answer: str
-    sources: list[str] = Field(default_factory=list)
-    agent_metadata: AgentMetadata = Field(description="Metadata del flujo de agentes para trazabilidad")
-
-
-class IngestResponse(BaseModel):
-    status: str
-    filename: str
-    chunks_processed: int

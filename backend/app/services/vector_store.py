@@ -81,7 +81,12 @@ class RAGService:
 
     @_ensure_initialized
     async def ingest_document(self, file_path: Path, original_filename: str | None = None) -> int:
-        """Procesa un PDF y sube los chunks al vector store in-memory."""
+        """Procesa un PDF y sube los chunks al vector store in-memory.
+
+        Optimizations:
+        - PDF loading and splitting run in a thread pool to not block the event loop
+        - Chunks are batched for embedding to maximize HuggingFace API throughput
+        """
         source_name = original_filename or file_path.name
 
         try:
@@ -93,8 +98,12 @@ class RAGService:
             for chunk in chunks:
                 chunk.metadata["source"] = source_name
 
-            # Add documents to vector store
-            await asyncio.to_thread(self._vector_store.add_documents, chunks)
+            # Batch add documents (embeddings are computed in batches internally)
+            # For large documents, split into batches to avoid API timeouts
+            batch_size = settings.ingestion_batch_size
+            for i in range(0, len(chunks), batch_size):
+                batch = chunks[i:i + batch_size]
+                await asyncio.to_thread(self._vector_store.add_documents, batch)
 
             logger.info(f"Ingestados {len(chunks)} chunks de '{source_name}'")
             return len(chunks)

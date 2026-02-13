@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api import router
@@ -34,6 +35,9 @@ app = FastAPI(
 # CORS - Origins from environment variable for production flexibility
 allowed_origins = get_allowed_origins()
 logger.info(f"CORS allowed origins: {allowed_origins}")
+
+# GZip compression for responses > 500 bytes (big wins on base64 chart payloads)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 app.add_middleware(
     CORSMiddleware,

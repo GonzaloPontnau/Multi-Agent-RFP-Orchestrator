@@ -25,6 +25,10 @@ from app.agents.prompts.specialist_prompts import (
     get_full_prompt,
     is_valid_domain,
 )
+from app.agents.prompts.graph_prompts import (
+    GRADER_PROMPT_BATCH,
+    REFINE_PROMPT,
+)
 
 __all__ = [
     # Domain configuration
@@ -45,4 +49,7 @@ __all__ = [
     "get_specialist_prompt",
     "get_full_prompt",
     "is_valid_domain",
+    # Graph prompts
+    "GRADER_PROMPT_BATCH",
+    "REFINE_PROMPT",
 ]
