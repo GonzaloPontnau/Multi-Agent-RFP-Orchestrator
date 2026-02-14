@@ -13,7 +13,7 @@
 | Capa | Tecnología | Notas |
 |------|------------|-------|
 | **Orquestación** | LangGraph | State machines con subagentes especializados |
-| **LLM** | Groq API (Llama 3.3 70B) | Alta velocidad, bajo costo |
+| **LLM** | Groq API (`openai/gpt-oss-120b`) | Alta velocidad, bajo costo |
 | **Embeddings** | HuggingFace Inference API | Cloud-based (ahorra RAM) |
 | **Vector DB** | Qdrant (In-Memory) | Efímero por diseño, zero-maintenance |
 | **Backend** | FastAPI (Python 3.11+) | Async, Pydantic V2 |
@@ -649,6 +649,7 @@ frontend/.env                   # URLs de API
 **Backend (Render):**
 ```plaintext
 GROQ_API_KEY=gsk_...
+GROQ_MODEL=openai/gpt-oss-120b
 HUGGINGFACE_API_KEY=hf_...
 APP_ENV=production
 LOG_LEVEL=INFO
@@ -663,7 +664,7 @@ VITE_API_URL=https://multi-agent-rfp-orchestrator-backend.onrender.com
 
 - **Render**: Cold starts de ~50 segundos. Primera request después de inactividad será lenta.
 - **Qdrant In-Memory**: Datos se pierden al reiniciar. Es intencional (Privacy by Design).
-- **Groq API**: Rate limits. Usar `llama-3.3-70b-versatile` para balance costo/calidad.
+- **Groq API**: Rate limits. Modelo por defecto actual: `openai/gpt-oss-120b` (ajustable con `GROQ_MODEL`).
 
 ---
 

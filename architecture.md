@@ -9,7 +9,7 @@ Sistema multi-agente para automatizar el analisis de licitaciones publicas. Util
 | Componente | Tecnologia | Notas |
 |------------|------------|-------|
 | **Orquestacion** | LangGraph | State Machine con subagentes |
-| **LLM** | Groq API (Llama 3.3 70B) | Alta velocidad, bajo costo |
+| **LLM** | Groq API (`openai/gpt-oss-120b`) | Alta velocidad, bajo costo |
 | **Embeddings** | HuggingFace Inference API | Cloud-based (ahorra RAM) |
 | **Vector DB** | Qdrant (In-Memory) | Efimero por diseno, zero-maintenance |
 | **Backend** | FastAPI (Async) | Pydantic V2 |
@@ -153,7 +153,7 @@ Cada respuesta incluye metadata de trazabilidad del pipeline completo:
 | **Frontend** | Vercel | React + Vite, deploy automatico |
 | **Backend** | Render (Free Tier) | FastAPI, ~50s cold start |
 | **Vector DB** | Qdrant In-Memory | Efimero: Privacy by Design |
-| **LLM** | Groq API | Llama 3.3 70B |
+| **LLM** | Groq API | `openai/gpt-oss-120b` (default) |
 | **Embeddings** | HuggingFace API | Cloud-based |
 
 Todos los subagentes corren en el mismo proceso. Son nodos del grafo LangGraph con prompts especializados, no microservicios independientes.

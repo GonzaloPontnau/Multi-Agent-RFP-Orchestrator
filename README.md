@@ -95,7 +95,7 @@ graph TD
 | Component | Technology | Description |
 |-----------|------------|-------------|
 | **Orchestration** | LangGraph | State machine management for multi-agent workflows. |
-| **LLM Inference** | Groq API | Fast inference using Llama 3 models. |
+| **LLM Inference** | Groq API | Fast inference using `openai/gpt-oss-120b` by default (overridable via `GROQ_MODEL`). |
 | **Embeddings** | HuggingFace Inference API | Cloud-based embeddings (saves RAM on free tier). |
 | **Backend** | FastAPI | High-performance async Python framework. |
 | **Frontend** | React + TypeScript | Modern, type-safe UI with TailwindCSS. |
